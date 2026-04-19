@@ -1,3 +1,3 @@
-export { test, it, describe } from './core/test';
-export { expect } from './core/expect';
-export { runTests } from './core/runner';
+export { test } from "./core/test";
+export { expect } from "./core/expect";
+export { run } from "./core/runner";
