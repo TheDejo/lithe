@@ -1,43 +1,65 @@
 {
   "name": "@thedejo/lithe",
-  "version": "0.3.0",
-  "description": "Jest-style test runner for AI agents",
+  "version": "0.3.1",
+  "description": "Jest-style test runner for AI agents: test LLM apps, tool calls and multi-step agents, with traces you can diff in CI",
+  "keywords": [
+    "ai",
+    "llm",
+    "agents",
+    "ai-agents",
+    "agent-testing",
+    "llm-testing",
+    "evals",
+    "llm-evals",
+    "prompt-testing",
+    "tool-calling",
+    "test-runner",
+    "testing",
+    "jest",
+    "vitest",
+    "ci",
+    "openai",
+    "anthropic",
+    "claude",
+    "gpt",
+    "typescript"
+  ],
+  "homepage": "https://github.com/TheDejo/lithe#readme",
+  "bugs": {
+    "url": "https://github.com/TheDejo/lithe/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TheDejo/lithe.git"
+  },
+  "license": "MIT",
+  "author": "Dejo",
   "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "bin": {
     "lithe": "dist/cli/index.js"
   },
   "files": [
     "dist"
   ],
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "build": "tsc",
     "prepublishOnly": "npm run build",
-    "test": "npm run build && node dist/cli/index.js && node --test test/cli.integration.mjs",
-    "dev": "tsx src/cli/index.ts"
-  },
-  "keywords": [
-    "ai",
-    "llm",
-    "testing",
-    "agents",
-    "jest"
-  ],
-  "author": "Dejo",
-  "license": "MIT",
-  "devDependencies": {
-    "@types/node": "^20.4.5",
-    "typescript": "^5.1.6"
+    "test": "npm run build && npm run typecheck && node dist/cli/index.js && node --test test/cli.integration.mjs",
+    "dev": "tsx src/cli/index.ts",
+    "typecheck": "tsc -p tsconfig.test.json"
   },
   "dependencies": {
     "commander": "^14.0.3",
     "tsx": "^4.23.15"
   },
-  "types": "dist/index.d.ts",
-  "engines": {
-    "node": ">=20"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/TheDejo/lithe.git"
+  "devDependencies": {
+    "@anthropic-ai/sdk": "^1.6.0",
+    "@types/node": "^20.4.5",
+    "openai": "^7.53.0",
+    "typescript": "^5.1.6"
   }
 }
