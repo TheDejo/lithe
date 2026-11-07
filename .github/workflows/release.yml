@@ -9,7 +9,7 @@ on:
 
 permissions:
   contents: write   # create the GitHub Release
-  id-token: write   # npm provenance
+  id-token: write   # npm trusted publishing (OIDC) + provenance
 
 jobs:
   publish:
@@ -19,9 +19,12 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
           registry-url: https://registry.npmjs.org
+
+      # Trusted publishing needs npm >= 11.5.1
+      - run: npm install -g npm@latest
 
       - run: npm ci
 
@@ -37,10 +40,11 @@ jobs:
       - name: Test
         run: npm test
 
+      # Authenticates via npm trusted publishing: no token or secret needed.
+      # Configure once on npmjs.com: package Settings -> Trusted Publisher ->
+      # GitHub Actions, user "TheDejo", repo "lithe", workflow "release.yml".
       - name: Publish to npm
-        run: npm publish --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public
 
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/')

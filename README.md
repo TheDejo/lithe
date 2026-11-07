@@ -580,7 +580,7 @@ Pull requests are welcome. Please add or update tests for any change. CI runs `n
 
 Releases are published to npm by [`.github/workflows/release.yml`](.github/workflows/release.yml).
 
-One-time setup: create an **Automation** access token on npmjs.com and add it to the repository as the `NPM_TOKEN` secret (**Settings → Secrets and variables → Actions**).
+One-time setup: the workflow uses [npm trusted publishing](https://docs.npmjs.com/trusted-publishers), so no npm token is stored in GitHub. On npmjs.com open the package → **Settings** → **Trusted Publisher** → **GitHub Actions**, and enter owner `TheDejo`, repository `lithe`, workflow filename `release.yml`.
 
 To release:
 
