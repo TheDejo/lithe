@@ -1,9 +1,9 @@
-import { test } from "../src/core/test";
-import { expect } from "../src/core/expect";
+// In your own project: import { test, expect } from "@thedejo/lithe";
+import { test, expect } from "../src";
 
 async function fakeAgent(input: string) {
   return {
-    jobs: ["Frontend Developer", "Backend Developer"]
+    jobs: ["Frontend Developer", "Backend Developer"],
   };
 }
 
