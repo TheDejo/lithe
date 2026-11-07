@@ -1,527 +1,330 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Lithe: test your AI agents like real software</title>
-<meta name="description" content="Lithe is an open-source, Jest-style test runner for AI agents. Mock LLM SDKs and tools, assert on meaning instead of wording, retry flaky model calls, and see exactly why an agent's behaviour changed between commits.">
-<meta property="og:title" content="Lithe: test your AI agents like real software">
-<meta property="og:description" content="Jest-style test runner for AI agents, with traces you can diff across commits.">
-<meta property="og:image" content="https://raw.githubusercontent.com/TheDejo/lithe/main/docs/demo.png">
-<meta name="twitter:card" content="summary_large_image">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2310131a'/%3E%3Cpath d='M9 7v18h14' stroke='%235eead4' stroke-width='3.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='23' cy='9' r='3' fill='%23a78bfa'/%3E%3C/svg%3E">
-<style>
-  :root {
-    --bg: #fafbfc;
-    --bg-soft: #f2f4f7;
-    --surface: #ffffff;
-    --border: #e3e7ee;
-    --text: #0f1420;
-    --muted: #5b6475;
-    --accent: #0d9488;
-    --accent-2: #7c3aed;
-    --accent-soft: rgba(13, 148, 136, 0.1);
-    --shadow: 0 1px 2px rgba(15, 20, 32, 0.04), 0 8px 24px rgba(15, 20, 32, 0.06);
-    /* the terminal stays dark in both themes */
-    --term-bg: #12151d;
-    --term-bar: #1a1e29;
-    --term-text: #c9ccd3;
-    --term-dim: #7f8794;
-    --term-bright: #f1f1f0;
-    --term-green: #5af78e;
-    --term-red: #ff6b6b;
-    --term-yellow: #f3f99d;
-    --term-cyan: #57c7ff;
-    --term-violet: #c4b5fd;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
-      --bg: #0a0c11;
-      --bg-soft: #0f1219;
-      --surface: #12151d;
-      --border: #222736;
-      --text: #e8eaf0;
-      --muted: #9098ab;
-      --accent: #5eead4;
-      --accent-2: #a78bfa;
-      --accent-soft: rgba(94, 234, 212, 0.1);
-      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 32px rgba(0, 0, 0, 0.35);
-      --term-bg: #0d1017;
-      --term-bar: #161a24;
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lithe</title>
+  <meta name="description" content="Lithe is an open-source test runner for AI agents, like Jest. Write down what an agent should and shouldn't do, run it in CI, and see why its behaviour changed.">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Lithe">
+  <meta property="og:description" content="A test runner for AI agents, like Jest.">
+  <meta property="og:image" content="https://raw.githubusercontent.com/TheDejo/lithe/main/docs/demo.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono&display=swap">
+  <style>
+    :root {
+      --bg: #F4F3EF;
+      --ink: #121417;
+      --body: #3A3F45;
+      --muted: #5A5F66;
+      --rule: #D6D4CE;
+      --underline: #B9B6AE;
+      --card: #FFFFFF;
+      --accent: #2340FF;
+      --ok: #0B7A4B;
+      --fail: #C2362F;
+      --sans: 'Inter Tight', system-ui, -apple-system, sans-serif;
+      --mono: 'JetBrains Mono', ui-monospace, monospace;
     }
-  }
-  :root[data-theme="dark"] {
-    --bg: #0a0c11;
-    --bg-soft: #0f1219;
-    --surface: #12151d;
-    --border: #222736;
-    --text: #e8eaf0;
-    --muted: #9098ab;
-    --accent: #5eead4;
-    --accent-2: #a78bfa;
-    --accent-soft: rgba(94, 234, 212, 0.1);
-    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 32px rgba(0, 0, 0, 0.35);
-    --term-bg: #0d1017;
-    --term-bar: #161a24;
-  }
 
-  * { box-sizing: border-box; }
-  html { scroll-behavior: smooth; }
-  body {
-    margin: 0;
-    background: var(--bg);
-    color: var(--text);
-    font: 16px/1.6 Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
-    -webkit-font-smoothing: antialiased;
-  }
-  a { color: inherit; }
-  code, pre, .mono { font-family: "JetBrains Mono", ui-monospace, Menlo, monospace; }
-  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+    *, *::before, *::after { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: var(--sans);
+      -webkit-font-smoothing: antialiased;
+    }
+    a {
+      color: var(--ink);
+      text-decoration-color: var(--underline);
+      text-underline-offset: 4px;
+      transition: text-decoration-color .15s ease;
+    }
+    a:hover { text-decoration-color: var(--ink); }
+    a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
+    h1, h2, h3, p { margin: 0; }
+    code { font-family: var(--mono); font-size: .88em; white-space: nowrap; }
+    .cmd { display: block; margin-top: 10px; color: var(--ink); white-space: normal; }
 
-  /* nav */
-  nav {
-    position: sticky; top: 0; z-index: 10;
-    background: color-mix(in srgb, var(--bg) 82%, transparent);
-    backdrop-filter: blur(12px);
-    border-bottom: 1px solid var(--border);
-  }
-  nav .wrap { display: flex; align-items: center; height: 64px; gap: 28px; }
-  .logo { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 20px; letter-spacing: -0.02em; text-decoration: none; }
-  .logo svg { width: 28px; height: 28px; }
-  nav .links { display: flex; gap: 24px; margin-left: auto; align-items: center; }
-  nav .links a { text-decoration: none; color: var(--muted); font-size: 15px; font-weight: 500; }
-  nav .links a:hover { color: var(--text); }
-  .gh-btn {
-    display: inline-flex; align-items: center; gap: 8px;
-    padding: 7px 14px; border: 1px solid var(--border); border-radius: 8px;
-    color: var(--text) !important; background: var(--surface);
-  }
-  .gh-btn svg { width: 18px; height: 18px; }
+    .wrap { max-width: 1240px; margin: 0 auto; padding: 24px 40px 80px; }
+    .accent { color: var(--accent); }
+    .muted { color: var(--muted); }
 
-  /* hero */
-  .hero { padding: 88px 0 72px; position: relative; overflow: hidden; }
-  .hero::before {
-    content: ""; position: absolute; inset: -40% -10% auto; height: 600px; pointer-events: none;
-    background:
-      radial-gradient(600px 300px at 20% 40%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 70%),
-      radial-gradient(500px 280px at 80% 30%, color-mix(in srgb, var(--accent-2) 14%, transparent), transparent 70%);
-  }
-  .hero .wrap { position: relative; display: grid; grid-template-columns: 1fr 1.1fr; gap: 56px; align-items: center; }
-  .eyebrow {
-    display: inline-flex; align-items: center; gap: 8px;
-    font-size: 13px; font-weight: 600; color: var(--accent);
-    background: var(--accent-soft); border-radius: 999px; padding: 5px 12px; margin-bottom: 22px;
-  }
-  h1 { font-size: clamp(40px, 5.4vw, 60px); line-height: 1.05; letter-spacing: -0.035em; margin: 0 0 22px; font-weight: 800; }
-  h1 .grad { background: linear-gradient(90deg, var(--accent), var(--accent-2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
-  .lede { font-size: 19px; color: var(--muted); margin: 0 0 32px; max-width: 34em; }
-  .cta { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
-  .install {
-    display: inline-flex; align-items: center; gap: 14px;
-    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
-    padding: 12px 12px 12px 18px; font-size: 15px; box-shadow: var(--shadow);
-  }
-  .install .dollar { color: var(--accent); user-select: none; }
-  .copy {
-    border: 1px solid var(--border); background: var(--bg-soft); color: var(--muted);
-    border-radius: 7px; padding: 6px 10px; font: 500 13px Inter, sans-serif; cursor: pointer;
-  }
-  .copy:hover { color: var(--text); }
-  .btn {
-    display: inline-flex; align-items: center; gap: 8px; text-decoration: none;
-    padding: 13px 20px; border-radius: 10px; font-weight: 600; font-size: 15px;
-  }
-  .btn.primary { background: var(--text); color: var(--bg); }
-  .btn.primary:hover { opacity: .9; }
-  .meta { margin-top: 22px; font-size: 14px; color: var(--muted); display: flex; gap: 18px; flex-wrap: wrap; }
-  .meta span::before { content: "✓ "; color: var(--accent); font-weight: 700; }
+    /* Header */
+    .site-header {
+      display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center;
+      gap: 8px 32px;
+    }
+    .brand { font-size: 20px; font-weight: 600; padding: 12px 0; text-decoration: none; }
+    .nav { display: flex; flex-wrap: wrap; gap: 4px 28px; font-size: 16px; }
+    .nav a { padding: 12px 0; text-decoration: none; }
+    .nav a:hover { text-decoration: underline; }
 
-  /* terminal */
-  .term {
-    background: var(--term-bg); border-radius: 14px; overflow: hidden;
-    border: 1px solid color-mix(in srgb, var(--term-dim) 25%, transparent);
-    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
-  }
-  .term-bar { height: 38px; background: var(--term-bar); display: flex; align-items: center; gap: 8px; padding: 0 14px; }
-  .term-bar i { width: 11px; height: 11px; border-radius: 50%; display: block; }
-  .term-bar span { margin-left: 10px; color: var(--term-dim); font: 12.5px "JetBrains Mono", monospace; }
-  .term pre {
-    margin: 0; padding: 18px 20px 22px; color: var(--term-text);
-    font-size: 13px; line-height: 1.6; overflow-x: auto;
-  }
-  .t-b { color: var(--term-bright); font-weight: 700; }
-  .t-g { color: var(--term-green); }
-  .t-r { color: var(--term-red); }
-  .t-y { color: var(--term-yellow); }
-  .t-c { color: var(--term-cyan); }
-  .t-d { color: var(--term-dim); }
-  .t-v { color: var(--term-violet); }
-  .t-p { color: var(--term-green); user-select: none; }
+    /* Hero */
+    .hero {
+      margin: 72px 0 128px;
+      padding-bottom: 72px;
+      border-bottom: 2px solid var(--ink);
+      display: flex; flex-direction: column; gap: 40px;
+    }
+    .hero h1 {
+      font-size: clamp(56px, 9vw, 136px);
+      line-height: 0.95;
+      font-weight: 600;
+      letter-spacing: -0.045em;
+    }
+    .lede { font-size: 20px; line-height: 1.55; color: var(--body); max-width: 600px; }
+    .install {
+      display: inline-flex; align-items: center; gap: 20px; align-self: flex-start;
+      background: var(--card); border-radius: 12px; padding: 14px 14px 14px 20px;
+      font-family: var(--mono); font-size: 16px; color: var(--ink);
+    }
+    .install .prompt { color: var(--muted); user-select: none; }
+    .copy {
+      font: 500 15px var(--sans); color: var(--ink);
+      background: var(--bg); border: 0; border-radius: 8px; padding: 8px 14px; cursor: pointer;
+    }
+    .copy:hover { background: var(--rule); }
 
-  /* sections */
-  section { padding: 88px 0; }
-  section.alt { background: var(--bg-soft); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
-  .kicker { color: var(--accent); font-weight: 700; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 12px; }
-  h2 { font-size: clamp(30px, 3.6vw, 42px); line-height: 1.12; letter-spacing: -0.03em; margin: 0 0 16px; font-weight: 800; }
-  .sub { color: var(--muted); font-size: 18px; max-width: 40em; margin: 0 0 48px; }
+    /* Section headings */
+    h2 { font-size: 32px; font-weight: 600; letter-spacing: -0.03em; margin-bottom: 24px; }
+    .spaced { margin-top: 128px; }
+    .section-head {
+      display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between;
+      gap: 8px 32px;
+    }
+    .meta { font-size: 16px; color: var(--body); margin-bottom: 24px; }
 
-  /* problem */
-  .pains { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
-  .pain { padding: 26px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); }
-  .pain .num { font: 700 13px "JetBrains Mono", monospace; color: var(--accent-2); margin-bottom: 10px; }
-  .pain h3 { margin: 0 0 8px; font-size: 18px; letter-spacing: -0.01em; }
-  .pain p { margin: 0; color: var(--muted); font-size: 15.5px; }
+    /* Rows */
+    .rows { list-style: none; margin: 0; padding: 0; border-top: 2px solid var(--ink); }
+    .rows li {
+      display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between;
+      gap: 8px 40px; padding: 28px 0; border-bottom: 1px solid var(--rule);
+    }
+    .rows li:last-child { border-bottom: 2px solid var(--ink); }
+    .rows .name {
+      font-size: clamp(36px, 5.5vw, 72px);
+      font-weight: 600; letter-spacing: -0.03em; line-height: 1;
+    }
+    .rows .desc { font-size: 18px; line-height: 1.5; color: var(--body); max-width: 440px; }
 
-  /* features */
-  .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
-  .feature { padding: 26px; border-radius: 14px; background: var(--surface); border: 1px solid var(--border); }
-  .feature .icon {
-    width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center;
-    background: var(--accent-soft); color: var(--accent); margin-bottom: 16px;
-  }
-  .feature .icon svg { width: 22px; height: 22px; }
-  .feature h3 { margin: 0 0 8px; font-size: 17px; letter-spacing: -0.01em; }
-  .feature p { margin: 0; color: var(--muted); font-size: 15px; }
-  .feature code { font-size: 13px; background: var(--bg-soft); padding: 1px 6px; border-radius: 5px; border: 1px solid var(--border); }
+    /* Cards */
+    .project {
+      background: var(--card); border-radius: 16px;
+      padding: clamp(28px, 4vw, 48px);
+      display: flex; flex-wrap: wrap; align-items: center; gap: 32px 56px;
+    }
+    .project + .project { margin-top: 16px; }
+    .project-copy { flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+    .project h3 { font-size: 44px; font-weight: 600; letter-spacing: -0.03em; line-height: 1.05; }
+    .project p { font-size: 18px; line-height: 1.55; color: var(--body); }
+    .term {
+      flex: 1.3 1 380px; min-width: 0; margin: 0;
+      font-family: var(--mono); font-size: 14px; line-height: 1.8;
+      background: var(--bg); border-radius: 10px; padding: 18px 20px;
+      color: var(--body); white-space: pre; overflow-x: auto;
+    }
+    .ok { color: var(--ok); }
+    .fail { color: var(--fail); }
+    .k { color: var(--accent); }
+    .ink { color: var(--ink); }
 
-  /* split code / output */
-  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: stretch; }
-  .panel { border-radius: 14px; overflow: hidden; border: 1px solid var(--border); background: var(--surface); display: flex; flex-direction: column; }
-  .panel-head {
-    display: flex; align-items: center; gap: 10px; padding: 12px 16px;
-    border-bottom: 1px solid var(--border); font: 500 13px "JetBrains Mono", monospace; color: var(--muted);
-  }
-  .panel-head .tag { margin-left: auto; font: 600 11px Inter, sans-serif; text-transform: uppercase; letter-spacing: .06em; color: var(--accent); }
-  .panel pre { margin: 0; padding: 18px 20px; font-size: 13px; line-height: 1.65; overflow-x: auto; flex: 1; }
-  .panel.dark { background: var(--term-bg); border-color: transparent; }
-  .panel.dark .panel-head { background: var(--term-bar); border-color: transparent; color: var(--term-dim); }
-  .panel.dark pre { color: var(--term-text); }
-  /* code highlighting (light-aware) */
-  .k { color: var(--accent-2); }
-  .s { color: #16a34a; }
-  .f { color: #2563eb; }
-  .c { color: var(--muted); font-style: italic; }
-  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .s { color: #86efac; } :root:not([data-theme="light"]) .f { color: #93c5fd; } }
-  :root[data-theme="dark"] .s { color: #86efac; }
-  :root[data-theme="dark"] .f { color: #93c5fd; }
+    /* Dark block */
+    .block {
+      background: var(--ink); color: var(--bg); border-radius: 16px;
+      padding: clamp(32px, 5vw, 64px);
+      display: flex; flex-direction: column; gap: 16px;
+    }
+    .block h2 { margin: 0; font-size: clamp(32px, 4vw, 52px); line-height: 1.1; }
+    .block p { font-size: 19px; line-height: 1.55; color: #C3C7CC; max-width: 640px; }
+    .block .term {
+      margin-top: 24px; background: #1C1F24; color: #C3C7CC; flex: none;
+    }
+    .block .term .ok { color: #5BD69A; }
+    .block .term .fail { color: #FF7B72; }
+    .block .term .k { color: #8FA0FF; }
+    .block .term .ink { color: #F4F3EF; }
 
-  /* why section */
-  .why { display: grid; grid-template-columns: 0.9fr 1.1fr; gap: 56px; align-items: center; }
-  .steps { list-style: none; padding: 0; margin: 0; display: grid; gap: 22px; }
-  .steps li { display: grid; grid-template-columns: 36px 1fr; gap: 14px; }
-  .steps .n {
-    width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center;
-    font: 700 14px "JetBrains Mono", monospace; color: var(--accent); background: var(--accent-soft);
-  }
-  .steps h3 { margin: 3px 0 4px; font-size: 17px; }
-  .steps p { margin: 0; color: var(--muted); font-size: 15px; }
-  .steps code { font-size: 13px; background: var(--bg-soft); padding: 1px 6px; border-radius: 5px; border: 1px solid var(--border); }
+    /* Footer */
+    .site-footer {
+      margin-top: 128px; padding-top: 24px; border-top: 1px solid var(--rule);
+      display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 28px;
+      font-size: 15px; color: var(--muted);
+    }
+    .site-footer nav { display: flex; flex-wrap: wrap; gap: 8px 24px; }
+    .site-footer a { color: var(--muted); }
+    .site-footer a:hover { color: var(--ink); }
 
-  /* providers */
-  .providers { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 28px; }
-  .chip {
-    border: 1px solid var(--border); background: var(--surface); border-radius: 999px;
-    padding: 6px 14px; font-size: 14px; color: var(--muted); font-weight: 500;
-  }
+    /* Scroll reveal: content is visible by default; only hidden once JS opts in */
+    .js .reveal { opacity: 0; transform: translateY(24px); transition: opacity .8s ease, transform .8s cubic-bezier(.2,.7,.2,1); }
+    .js .reveal.in { opacity: 1; transform: none; }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      .js .reveal { opacity: 1; transform: none; transition: none; }
+    }
 
-  /* final cta */
-  .final { text-align: center; padding: 96px 0; }
-  .final .sub { margin-left: auto; margin-right: auto; }
-  .final .cta { justify-content: center; }
-
-  footer { border-top: 1px solid var(--border); padding: 32px 0; color: var(--muted); font-size: 14px; }
-  footer .wrap { display: flex; gap: 24px; flex-wrap: wrap; align-items: center; }
-  footer .links { margin-left: auto; display: flex; gap: 20px; }
-  footer a { text-decoration: none; }
-  footer a:hover { color: var(--text); }
-
-  /* responsive */
-  @media (max-width: 920px) {
-    .hero .wrap, .why, .split { grid-template-columns: 1fr; }
-    .pains, .features { grid-template-columns: 1fr 1fr; }
-    .hero { padding-top: 56px; }
-  }
-  @media (max-width: 640px) {
-    .wrap { padding: 0 16px; }
-    nav .links a:not(.gh-btn) { display: none; }
-    .pains, .features { grid-template-columns: 1fr; }
-    section { padding: 64px 0; }
-    .install { width: 100%; justify-content: space-between; font-size: 13.5px; padding-left: 14px; }
-    .btn.primary { width: 100%; justify-content: center; }
-    .term pre, .panel pre { font-size: 11.5px; white-space: pre-wrap; overflow-wrap: anywhere; }
-  }
-</style>
+    @media (max-width: 640px) {
+      .wrap { padding: 16px 16px 56px; }
+      .hero { margin: 48px 0 80px; padding-bottom: 48px; gap: 32px; }
+      .spaced, .site-footer { margin-top: 88px; }
+      .lede { font-size: 18px; }
+      .project h3 { font-size: 36px; }
+      .install { align-self: stretch; justify-content: space-between; font-size: 14px; }
+      .term { font-size: 12px; }
+    }
+  </style>
 </head>
 <body>
-
-<nav>
+  <script>document.documentElement.classList.add("js");</script>
   <div class="wrap">
-    <a class="logo" href="#" aria-label="Lithe home">
-      <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#10131a"/><path d="M9 7v18h14" stroke="#5eead4" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/><circle cx="23" cy="9" r="3" fill="#a78bfa"/></svg>
-      Lithe
-    </a>
-    <div class="links">
-      <a href="#features">Features</a>
-      <a href="#why">Traces</a>
-      <a href="#ci">CI</a>
-      <a href="https://github.com/TheDejo/lithe#readme">Docs</a>
-      <a class="gh-btn" href="https://github.com/TheDejo/lithe">
-        <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
-        GitHub
-      </a>
-    </div>
-  </div>
-</nav>
 
-<header class="hero">
-  <div class="wrap">
-    <div>
-      <div class="eyebrow">Open source · MIT · TypeScript &amp; JavaScript</div>
-      <h1>Test your AI agents like <span class="grad">real software</span>.</h1>
-      <p class="lede">Lithe is a Jest-style test runner for LLM apps and multi-step agents. Mock your models and tools, assert on meaning instead of wording, and see exactly <strong>why</strong> an agent's behaviour changed between commits.</p>
-      <div class="cta">
-        <div class="install mono">
-          <span><span class="dollar">$</span> npm i -D @thedejo/lithe</span>
-          <button class="copy" data-copy="npm install --save-dev @thedejo/lithe">Copy</button>
+    <header class="site-header">
+      <a class="brand" href="#">Lithe</a>
+      <nav aria-label="Links" class="nav">
+        <a href="https://github.com/TheDejo/lithe#readme">Docs</a>
+        <a href="https://www.npmjs.com/package/@thedejo/lithe">npm</a>
+        <a href="https://github.com/TheDejo/lithe">GitHub</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero">
+        <h1>Write the test.<br>Run it in CI.<br><span class="accent">Know why it changed.</span></h1>
+        <p class="lede">Lithe is an open-source test runner for AI agents, like Jest. Write down what an agent should and shouldn't do, run it on every commit, and see exactly where its behaviour changed.</p>
+        <div class="install">
+          <span><span class="prompt">$ </span>npm i -D @thedejo/lithe</span>
+          <button class="copy" type="button" data-copy="npm install --save-dev @thedejo/lithe">Copy</button>
         </div>
-        <a class="btn primary" href="https://github.com/TheDejo/lithe#quick-start">Get started →</a>
-      </div>
-      <div class="meta"><span>Zero config</span><span>Works with any LLM</span><span>Built for CI</span></div>
-    </div>
+      </section>
 
-    <div class="term" role="img" aria-label="Terminal: a failing agent test shows the agent's trace, then lithe compare shows the first step where its behaviour diverged">
-      <div class="term-bar"><i style="background:#ff5f56"></i><i style="background:#ffbd2e"></i><i style="background:#27c93f"></i><span>trip-planner — lithe</span></div>
-<pre><span class="t-p">$</span> <span class="t-b">npx lithe</span>
-<span class="t-b">tests/trip-planner.test.ts</span>
-  trip planner
-    <span class="t-r">✗ plans a day of sightseeing</span>
-    <span class="t-g">✓</span> keeps the city in the plan
+      <section aria-labelledby="what" class="reveal">
+        <h2 id="what">What it does</h2>
+        <ul class="rows">
+          <li><span class="name">Tests</span><span class="desc"><code>describe</code>, <code>test</code> and <code>expect</code>, the way you already write them. TypeScript runs as is, with no config.</span></li>
+          <li><span class="name">Mocks</span><span class="desc">Stub the Anthropic or OpenAI client your agent already uses, script the model's replies, and check every tool call.</span></li>
+          <li><span class="name">Assertions</span><span class="desc">Check meaning, not wording. Match parts of a string, a shape of JSON, or one of several good answers.</span></li>
+          <li><span class="name">Retries</span><span class="desc">Give real model calls more time and another try, and still see which tests needed it.</span></li>
+          <li><span class="name">Traces</span><span class="desc">Every model call, tool call and note is recorded. When a test fails, you see the steps that led there.</span></li>
+          <li><span class="name accent">Compare</span><span class="desc">Diff two runs and find the first step where an agent did something different, even when its tests still pass.</span></li>
+        </ul>
+      </section>
 
-<span class="t-r">1) trip planner › plans a day of sightseeing</span>
-   Expected: 'Navy Pier'
-   Received: [ 'Alinea', 'Girl &amp; the Goat' ]
+      <section aria-labelledby="looks" class="spaced reveal">
+        <h2 id="looks">How it looks</h2>
+        <article class="project">
+          <div class="project-copy">
+            <h3>Write it down</h3>
+            <p>Stub the client, script what the model says, and assert on what the agent does with it.</p>
+          </div>
+<pre class="term"><span class="ink">const</span> create = spyOn(client.messages, <span class="ok">"create"</span>);
 
-   <span class="t-b">Trace (2 steps):</span>
-<span class="t-d">     1. +1ms</span> <span class="t-c">note: query "Chicago restaurants"</span>
-<span class="t-d">     2. +1ms</span> search("Chicago restaurants") → ["Alinea", …]
-
-<span class="t-p">$</span> <span class="t-b">npx lithe compare main.json branch.json</span>
-<span class="t-r">✗ now failing</span>  trip planner › plans a day of sightseeing
-   <span class="t-d">first difference at step 1:</span>
-   <span class="t-r">- note: query "things to do in Chicago"</span>
-   <span class="t-g">+ note: query "Chicago restaurants"</span>
-
-<span class="t-y">~ behaviour changed</span>  trip planner › keeps the city in the plan</pre>
-    </div>
-  </div>
-</header>
-
-<section class="alt">
-  <div class="wrap">
-    <div class="kicker">The problem</div>
-    <h2>Agents are code. We test them like demos.</h2>
-    <p class="sub">The usual tools score a single prompt's output. Agents call tools, loop, and make decisions, and that's where they break.</p>
-    <div class="pains">
-      <div class="pain"><div class="num">01</div><h3>Outputs change every run</h3><p>Exact-match assertions are flaky, so teams stop writing tests at all.</p></div>
-      <div class="pain"><div class="num">02</div><h3>Regressions are silent</h3><p>A prompt tweak makes the agent take a different path. The answer still looks fine, until it doesn't.</p></div>
-      <div class="pain"><div class="num">03</div><h3>Failures don't explain themselves</h3><p>You see the last line that broke, not the five steps that led there. Debugging means re-running and guessing.</p></div>
-    </div>
-  </div>
-</section>
-
-<section id="features">
-  <div class="wrap">
-    <div class="kicker">Features</div>
-    <h2>Everything you expect from a test runner, plus what agents need.</h2>
-    <p class="sub">If you've used Jest or Vitest, you already know how to use Lithe.</p>
-    <div class="features">
-      <div class="feature">
-        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 11 3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg></div>
-        <h3>Code-first, zero config</h3>
-        <p><code>describe</code>, <code>test</code>, <code>expect</code> and hooks. TypeScript and ESM work out of the box, with no build step.</p>
-      </div>
-      <div class="feature">
-        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9h10M7 13h6"/></svg></div>
-        <h3>Mock models and tools</h3>
-        <p><code>fn()</code> and <code>spyOn()</code> stub the real Anthropic and OpenAI SDK clients, so tool-calling flows are deterministic in CI.</p>
-      </div>
-      <div class="feature">
-        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><circle cx="12" cy="12" r="5"/></svg></div>
-        <h3>Assert on meaning</h3>
-        <p><code>toContainAll</code>, <code>toBeJSON(shape)</code>, <code>expect.oneOf</code> and <code>expect.satisfies</code> handle output that varies between runs.</p>
-      </div>
-      <div class="feature">
-        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg></div>
-        <h3>Retries and timeouts</h3>
-        <p>Per-test <code>retries</code> absorb rate limits and flaky model calls, and retried tests are flagged so flakiness stays visible.</p>
-      </div>
-      <div class="feature">
-        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h10M4 18h7"/><circle cx="18" cy="16" r="3"/></svg></div>
-        <h3>Step-by-step traces</h3>
-        <p>Every LLM call, tool call and <code>note()</code> is recorded per test, and printed right under the error when a test fails.</p>
-      </div>
-      <div class="feature">
-        <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v12"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="6" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg></div>
-        <h3>Diff behaviour across commits</h3>
-        <p><code>lithe compare</code> shows which tests changed between runs, and the first step where each agent diverged.</p>
-      </div>
-    </div>
-  </div>
-</section>
-
-<section class="alt">
-  <div class="wrap">
-    <div class="kicker">How it looks</div>
-    <h2>Write a test. Get a clear answer.</h2>
-    <p class="sub">Stub the SDK client your agent already uses, script the model's replies, and assert on what the agent does.</p>
-    <div class="split">
-      <div class="panel">
-        <div class="panel-head">tests/support.test.ts<span class="tag">Test</span></div>
-<pre><span class="k">import</span> Anthropic <span class="k">from</span> <span class="s">"@anthropic-ai/sdk"</span>;
-<span class="k">import</span> { test, expect, spyOn } <span class="k">from</span> <span class="s">"@thedejo/lithe"</span>;
-
-<span class="k">const</span> client = <span class="k">new</span> <span class="f">Anthropic</span>({ apiKey: <span class="s">"test"</span> });
-<span class="k">const</span> create = <span class="f">spyOn</span>(client.messages, <span class="s">"create"</span>);
-
-<span class="f">test</span>(<span class="s">"looks up the order first"</span>, <span class="k">async</span> () =&gt; {
+test(<span class="ok">"looks up the order first"</span>, async () =&gt; {
   create
-    .<span class="f">mockResolvedValueOnce</span>(<span class="f">toolUse</span>(<span class="s">"get_order"</span>))
-    .<span class="f">mockResolvedValueOnce</span>(<span class="f">text</span>(<span class="s">"It ships Friday."</span>));
+    .mockResolvedValueOnce(toolUse(<span class="ok">"get_order"</span>))
+    .mockResolvedValueOnce(text(<span class="ok">"It ships Friday."</span>));
 
-  <span class="k">const</span> answer = <span class="k">await</span> <span class="f">supportAgent</span>(client, <span class="s">"Where's A-1042?"</span>);
+  <span class="ink">const</span> answer = await supportAgent(client, <span class="ok">"Where's A-1042?"</span>);
 
-  <span class="f">expect</span>(create).<span class="f">toHaveBeenCalledTimes</span>(<span class="s">2</span>);
-  <span class="f">expect</span>(answer).<span class="f">toContainAll</span>([<span class="s">"ships"</span>, <span class="s">"friday"</span>]);
+  expect(create).toHaveBeenCalledTimes(2);
+  expect(answer).toContainAll([<span class="ok">"ships"</span>, <span class="ok">"friday"</span>]);
 });</pre>
-      </div>
-      <div class="panel dark">
-        <div class="panel-head">terminal<span class="tag" style="color:var(--term-green)">Output</span></div>
-<pre><span class="t-p">$</span> <span class="t-b">npx lithe</span>
+        </article>
+        <article class="project">
+          <div class="project-copy">
+            <h3>Run it</h3>
+            <p>Lithe finds your test files and exits non-zero when one fails, so CI stops the change.</p>
+          </div>
+<pre class="term">$ npx lithe
 
-<span class="t-b">tests/support.test.ts</span>
-  <span class="t-g">✓</span> looks up the order first <span class="t-d">(12ms)</span>
-  <span class="t-g">✓</span> answers directly when no lookup is needed
-  <span class="t-g">✓</span> surfaces a refusal instead of an empty answer
+<span class="ink">tests/support.test.ts</span>
+  <span class="ok">✓</span> looks up the order first
+  <span class="ok">✓</span> answers directly when no lookup is needed
+  <span class="ok">✓</span> surfaces a refusal instead of an empty answer
 
-<span class="t-b">Test files:</span> <span class="t-g">1 passed</span> (1)
-<span class="t-b">Tests:     </span> <span class="t-g">3 passed</span> (3)
-<span class="t-b">Time:      </span> 84ms</pre>
-      </div>
-    </div>
-    <div class="providers">
-      <span class="chip">Anthropic SDK</span><span class="chip">OpenAI SDK</span><span class="chip">Any HTTP client</span><span class="chip">Your own tools</span>
-    </div>
+Tests: <span class="ok">3 passed</span> (3)</pre>
+        </article>
+      </section>
+
+      <section class="block spaced reveal" aria-labelledby="why">
+        <h2 id="why">Know why it changed.</h2>
+        <p>Save a record of every run with <code>--report</code>. Compare two of them, and Lithe points to the first step where the agent went another way.</p>
+<pre class="term">$ npx lithe compare main.json branch.json
+
+<span class="fail">✗ now failing</span>  plans a day of sightseeing <span class="muted">(pass → fail)</span>
+   first difference at step 1:
+   <span class="fail">- note: query "things to do in Chicago"</span>
+   <span class="ok">+ note: query "Chicago restaurants"</span>
+
+<span class="k">~ behaviour changed</span>  keeps the city in the plan</pre>
+      </section>
+
+      <section aria-labelledby="ci" class="spaced reveal">
+        <div class="section-head">
+          <h2 id="ci">Run it in CI</h2>
+          <p class="meta">Works anywhere Node 20 runs · <a href="https://github.com/TheDejo/lithe#running-in-cicd">Guides</a></p>
+        </div>
+        <ul class="rows">
+          <li><span class="name">GitHub</span><span class="desc">Save a report on every build, keep it as an artifact, and compare pull requests against main.<code class="cmd">npx lithe --report lithe-report.json</code></span></li>
+          <li><span class="name">Anywhere else</span><span class="desc">GitLab, CircleCI, Azure, Jenkins or Buildkite. Lithe exits non-zero when a test fails.<code class="cmd">npm ci &amp;&amp; npx lithe</code></span></li>
+          <li><span class="name">Real models</span><span class="desc">Give the slower tests that call a live API more time, and a second try.<code class="cmd">npx lithe e2e --timeout 60000 --retries 2</code></span></li>
+        </ul>
+      </section>
+
+      <section aria-labelledby="start" class="spaced reveal">
+        <h2 id="start">Start</h2>
+        <article class="project">
+          <div class="project-copy">
+            <h3>Two minutes</h3>
+            <p>Install it, write one test, run <code>npx lithe</code>. The <a href="https://github.com/TheDejo/lithe#quick-start">quick start</a> walks through it.</p>
+          </div>
+<pre class="term">$ npm i -D @thedejo/lithe
+$ npx lithe
+<span class="ok">✓</span> asks before sending email
+<span class="ok">✓</span> never ghosts a candidate</pre>
+        </article>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <span>Lithe, MIT licence. Made by <a href="https://thedejo.github.io/">Divine Ogbe</a>.</span>
+      <nav aria-label="Footer">
+        <a href="https://github.com/TheDejo/lithe">GitHub</a>
+        <a href="https://www.npmjs.com/package/@thedejo/lithe">npm</a>
+        <a href="https://github.com/TheDejo/lithe/blob/main/CONTRIBUTING.md">Contribute</a>
+      </nav>
+    </footer>
+
   </div>
-</section>
-
-<section id="why">
-  <div class="wrap why">
-    <div>
-      <div class="kicker">Traces &amp; run records</div>
-      <h2>Know <em style="padding-right:.12em">why</em> an agent changed, not just that it did.</h2>
-      <p class="sub" style="margin-bottom:32px">Every run can leave a record that another developer, or another agent, can read later.</p>
-      <ol class="steps">
-        <li><span class="n">1</span><div><h3>Record the steps</h3><p>Name a mock, wrap a client with <code>traced()</code>, or call <code>note()</code> to log a decision and its reason.</p></div></li>
-        <li><span class="n">2</span><div><h3>Save the run</h3><p><code>lithe --report run.json</code> stores every result and trace, plus the git commit and CI run it came from.</p></div></li>
-        <li><span class="n">3</span><div><h3>Compare two runs</h3><p><code>lithe compare</code> lists what broke, what got fixed, and tests that still pass but now behave differently.</p></div></li>
-      </ol>
-    </div>
-    <div class="term">
-      <div class="term-bar"><i style="background:#ff5f56"></i><i style="background:#ffbd2e"></i><i style="background:#27c93f"></i><span>lithe compare</span></div>
-<pre><span class="t-p">$</span> <span class="t-b">npx lithe compare main.json branch.json</span>
-
-<span class="t-r">✗ now failing</span>  plans a day of sightseeing <span class="t-d">(pass → fail)</span>
-   <span class="t-d">first difference at step 1:</span>
-   <span class="t-r">- note: query "things to do in Chicago"</span>
-   <span class="t-g">+ note: query "Chicago restaurants"</span>
-   <span class="t-d">error: expect(received).toContain(expected)</span>
-
-<span class="t-y">~ behaviour changed</span>  keeps the city in the plan
-   <span class="t-d">first difference at step 1:</span>
-   <span class="t-r">- note: query "things to do in Chicago"</span>
-   <span class="t-g">+ note: query "Chicago restaurants"</span>
-
-2 change(s): <span class="t-r">1 now failing</span>, 0 now passing, <span class="t-y">1 changed</span></pre>
-    </div>
-  </div>
-</section>
-
-<section id="ci" class="alt">
-  <div class="wrap">
-    <div class="kicker">CI/CD</div>
-    <h2>Gate every pull request.</h2>
-    <p class="sub">Lithe exits non-zero when a test fails, so it works in any CI. Save a run record on every build and compare pull requests against <code>main</code>.</p>
-    <div class="split">
-      <div class="panel">
-        <div class="panel-head">.github/workflows/test.yml<span class="tag">GitHub Actions</span></div>
-<pre><span class="k">- run:</span> npm ci
-
-<span class="k">- name:</span> Run Lithe tests
-  <span class="k">run:</span> npx lithe --report lithe-report.json
-
-<span class="k">- name:</span> Save run record
-  <span class="k">if:</span> always()
-  <span class="k">uses:</span> actions/upload-artifact@v4
-  <span class="k">with:</span>
-    <span class="k">name:</span> lithe-report
-    <span class="k">path:</span> lithe-report.json</pre>
-      </div>
-      <div class="panel">
-        <div class="panel-head">anywhere else<span class="tag">Any CI</span></div>
-<pre><span class="c"># GitLab, CircleCI, Azure, Jenkins, Buildkite…</span>
-npm ci &amp;&amp; npx lithe
-
-<span class="c"># real-model tests: more time, retry flaky calls</span>
-npx lithe tests/e2e --timeout 60000 --retries 2
-
-<span class="c"># see what changed versus main</span>
-npx lithe compare main.json branch.json</pre>
-      </div>
-    </div>
-  </div>
-</section>
-
-<section class="final">
-  <div class="wrap">
-    <h2>Start testing your agents in two minutes.</h2>
-    <p class="sub">Install it, write one test, run <code>npx lithe</code>.</p>
-    <div class="cta">
-      <div class="install mono">
-        <span><span class="dollar">$</span> npm i -D @thedejo/lithe</span>
-        <button class="copy" data-copy="npm install --save-dev @thedejo/lithe">Copy</button>
-      </div>
-      <a class="btn primary" href="https://github.com/TheDejo/lithe">⭐ Star on GitHub</a>
-    </div>
-  </div>
-</section>
-
-<footer>
-  <div class="wrap">
-    <span>Lithe · MIT License · © 2026 Dejo</span>
-    <div class="links">
-      <a href="https://github.com/TheDejo/lithe">GitHub</a>
-      <a href="https://www.npmjs.com/package/@thedejo/lithe">npm</a>
-      <a href="https://github.com/TheDejo/lithe#readme">Docs</a>
-      <a href="https://github.com/TheDejo/lithe/blob/main/CONTRIBUTING.md">Contribute</a>
-    </div>
-  </div>
-</footer>
-
-<script>
-  document.querySelectorAll(".copy").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      try {
-        await navigator.clipboard.writeText(btn.dataset.copy);
-        btn.textContent = "Copied";
-      } catch {
-        btn.textContent = "Select & copy";
-      }
-      setTimeout(() => (btn.textContent = "Copy"), 1600);
+  <script>
+    document.querySelectorAll(".copy").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var done = function (label) {
+          btn.textContent = label;
+          setTimeout(function () { btn.textContent = "Copy"; }, 1600);
+        };
+        if (navigator.clipboard) {
+          navigator.clipboard.writeText(btn.dataset.copy).then(function () { done("Copied"); }, function () { done("Select to copy"); });
+        } else {
+          done("Select to copy");
+        }
+      });
     });
-  });
-</script>
+
+    var items = document.querySelectorAll(".reveal");
+    if ("IntersectionObserver" in window) {
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) {
+          if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); }
+        });
+      }, { rootMargin: "0px 0px -10% 0px", threshold: 0.08 });
+      items.forEach(function (el) { io.observe(el); });
+    } else {
+      items.forEach(function (el) { el.classList.add("in"); });
+    }
+  </script>
 </body>
 </html>
