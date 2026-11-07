@@ -15,6 +15,8 @@ Lithe is an open-source, Jest-style test runner built for AI agents and LLM-powe
 npm install --save-dev @thedejo/lithe
 ```
 
+**Website:** [thedejo.github.io/lithe](https://thedejo.github.io/lithe/)
+
 Works with any LLM provider, including the [Anthropic](examples/integrations/anthropic-sdk.test.ts) and [OpenAI](examples/integrations/openai-sdk.test.ts) SDKs.
 
 ```ts

@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lithe</title>
+  <meta name="description" content="Lithe is an open-source test runner for AI agents, like Jest. Write down what an agent should and shouldn't do, run it in CI, and see where its behaviour changed.">
+  <link rel="canonical" href="https://thedejo.github.io/lithe/">
+  <meta property="og:url" content="https://thedejo.github.io/lithe/">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Lithe">
+  <meta property="og:description" content="A test runner for AI agents, like Jest.">
+  <meta property="og:image" content="https://raw.githubusercontent.com/TheDejo/lithe/main/docs/demo.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+  <style>
+    :root {
+      --bg: #EDE3D8;        /* nude */
+      --panel: #F6F0E9;     /* lighter nude for terminals and panels */
+      --ink: #1A1613;
+      --body: #4D453E;
+      --muted: #8C8178;
+      --rule: #D9CCBF;
+      --accent: #C2410C;    /* burnt orange */
+      --ok: #2F6B3F;
+      --fail: #A3241F;
+      --sans: 'Geist', system-ui, -apple-system, sans-serif;
+      --mono: 'Geist Mono', ui-monospace, Menlo, monospace;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+    body {
+      margin: 0; background: var(--bg); color: var(--ink);
+      font-family: var(--sans); font-size: 17px; line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+    ::selection { background: #F3C9AE; }
+    a { color: var(--ink); text-decoration: underline; text-decoration-color: var(--rule); text-underline-offset: 4px; transition: text-decoration-color .15s; }
+    a:hover { text-decoration-color: var(--ink); }
+    a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 3px; }
+    h1, h2, h3, p { margin: 0; }
+    h1, h2 { text-wrap: balance; }
+    code { font-family: var(--mono); font-size: .9em; white-space: nowrap; }
+
+    .wrap { max-width: 1080px; margin: 0 auto; padding: 0 32px; }
+
+    /* Header */
+    header { display: flex; justify-content: space-between; align-items: center; height: 76px; }
+    .brand { font-weight: 600; font-size: 18px; text-decoration: none; letter-spacing: -0.01em; }
+    header nav { display: flex; gap: 28px; font-size: 15px; }
+    header nav a { text-decoration: none; color: var(--body); }
+    header nav a:hover { color: var(--ink); }
+
+    /* Hero */
+    .hero { padding-top: 120px; }
+    .hero h1 {
+      font-size: clamp(44px, 6.6vw, 84px); line-height: 1.02; font-weight: 600;
+      letter-spacing: -0.04em; max-width: 12em;
+    }
+    .dot { color: var(--accent); }
+    .hero .lede { margin-top: 28px; font-size: 20px; color: var(--body); max-width: 33em; }
+    .actions { margin-top: 40px; display: flex; flex-wrap: wrap; align-items: center; gap: 14px 28px; }
+    .install {
+      display: inline-flex; align-items: center; gap: 18px;
+      background: var(--panel); border-radius: 999px; padding: 8px 8px 8px 22px;
+      font: 15px var(--mono);
+    }
+    .install .p { color: var(--accent); user-select: none; }
+    .copy {
+      font: 500 14px var(--sans); color: var(--panel); background: var(--ink);
+      border: 0; border-radius: 999px; padding: 8px 16px; cursor: pointer;
+    }
+    .copy:hover { background: #3A332D; }
+    .actions a { font-size: 15px; }
+
+    /* Terminal */
+    .term {
+      margin: 0; background: var(--panel); border-radius: 14px;
+      font: 14px/1.85 var(--mono); color: var(--body);
+      padding: 28px 32px; white-space: pre; overflow-x: auto;
+    }
+    .term .i { color: var(--ink); }
+    .term .m { color: var(--muted); }
+    .term .ok { color: var(--ok); }
+    .term .no { color: var(--fail); }
+    .term .a { color: var(--accent); }
+    /* syntax colors for code */
+    .code .kw { color: #8B3A70; }
+    .code .fn { color: #2C5A8C; }
+    .code .me { color: #1F7A73; }
+    .code .str { color: #5A7A1E; }
+    .code .num { color: var(--accent); }
+    .code .var { color: var(--ink); }
+    .code .pun { color: var(--muted); }
+    .stage { margin-top: 72px; }
+
+    /* Sections */
+    section.wrap { margin-top: 160px; }
+    .label {
+      font: 500 13px var(--mono); color: var(--muted); letter-spacing: .02em;
+      display: flex; align-items: center; gap: 12px; margin-bottom: 28px;
+    }
+    .label::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+    h2 { font-size: clamp(32px, 4vw, 48px); line-height: 1.08; font-weight: 600; letter-spacing: -0.035em; max-width: 15em; }
+    .intro { margin-top: 18px; font-size: 19px; color: var(--body); max-width: 34em; }
+
+    /* Features */
+    .grid { margin-top: 64px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 56px 48px; }
+    .grid > div { border-top: 1px solid var(--rule); padding-top: 22px; }
+    .grid .n { font: 13px var(--mono); color: var(--muted); }
+    .grid h3 { margin: 14px 0 8px; font-size: 21px; font-weight: 600; letter-spacing: -0.02em; }
+    .grid p { color: var(--body); font-size: 16px; }
+
+    /* Split code/output */
+    .split { margin-top: 56px; display: grid; grid-template-columns: 1.15fr 1fr; background: var(--panel); border-radius: 16px; overflow: hidden; }
+    .split .term { border-radius: 0; background: transparent; padding: 28px 30px; font-size: 13.5px; }
+    .split .term + .term { border-left: 1px solid var(--rule); }
+    .split .cap { display: block; font: 12px var(--mono); color: var(--muted); margin-bottom: 14px; }
+
+    /* Why */
+    .why { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: start; }
+    .points { margin-top: 36px; display: grid; gap: 22px; }
+    .points div { display: grid; grid-template-columns: 28px 1fr; }
+    .points span { font: 13px var(--mono); color: var(--accent); padding-top: 3px; }
+    .points p { color: var(--body); }
+    .points b { color: var(--ink); font-weight: 600; }
+    .why .term { margin-top: 6px; font-size: 13.5px; }
+
+    /* CI */
+    .ci { margin-top: 56px; border-top: 1px solid var(--ink); }
+    .ci div { display: grid; grid-template-columns: 220px 1fr; gap: 24px; padding: 26px 0; border-bottom: 1px solid var(--rule); align-items: baseline; }
+    .ci h3 { font-size: 19px; font-weight: 600; letter-spacing: -0.015em; }
+    .ci p { color: var(--body); }
+    .ci code { display: block; margin-top: 8px; color: var(--ink); white-space: normal; }
+
+    /* Closing */
+    .closing { padding-top: 200px; padding-bottom: 160px; text-align: center; }
+    .closing h2 { margin: 0 auto; }
+    .closing .actions { justify-content: center; }
+
+    footer { border-top: 1px solid var(--rule); padding: 28px 0 40px; font-size: 14px; color: var(--muted); }
+    footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px 24px; }
+    footer a { color: var(--muted); text-decoration: none; }
+    footer a:hover { color: var(--ink); }
+    footer nav { display: flex; gap: 22px; }
+
+    /* Scroll reveal: visible by default; hidden only once JS opts in */
+    .js .reveal { opacity: 0; transform: translateY(28px); transition: opacity 1s ease, transform 1s cubic-bezier(.16,.84,.24,1); }
+    .js .reveal.in { opacity: 1; transform: none; }
+    .js .grid.reveal { opacity: 1; transform: none; }
+    .js .grid.reveal > div { opacity: 0; transform: translateY(16px); transition: opacity .8s ease, transform .8s cubic-bezier(.16,.84,.24,1); }
+    .js .grid.reveal.in > div { opacity: 1; transform: none; }
+    .js .grid.reveal.in > div:nth-child(2) { transition-delay: .08s; }
+    .js .grid.reveal.in > div:nth-child(3) { transition-delay: .16s; }
+    .js .grid.reveal.in > div:nth-child(4) { transition-delay: .24s; }
+    .js .grid.reveal.in > div:nth-child(5) { transition-delay: .32s; }
+    .js .grid.reveal.in > div:nth-child(6) { transition-delay: .40s; }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      .js .reveal, .js .grid.reveal > div { opacity: 1; transform: none; transition: none; }
+    }
+
+    @media (max-width: 860px) {
+      .grid { grid-template-columns: 1fr 1fr; }
+      .split, .why { grid-template-columns: 1fr; }
+      .split .term + .term { border-left: 0; border-top: 1px solid var(--rule); }
+      .why { gap: 32px; }
+    }
+    @media (max-width: 600px) {
+      body { font-size: 16px; }
+      .wrap { padding: 0 16px; }
+      header nav { gap: 18px; }
+      .hero { padding-top: 64px; }
+      .hero .lede { font-size: 18px; }
+      section.wrap { margin-top: 112px; }
+      .grid { grid-template-columns: 1fr; gap: 36px; }
+      .ci div { grid-template-columns: 1fr; gap: 6px; }
+      .install { width: 100%; justify-content: space-between; font-size: 14px; }
+      .term, .split .term { font-size: 12px; padding: 20px; }
+      .closing { padding-top: 140px; padding-bottom: 112px; }
+    }
+  </style>
+</head>
+<body>
+  <script>document.documentElement.classList.add("js");</script>
+
+  <header class="wrap">
+    <a class="brand" href="#">Lithe</a>
+    <nav aria-label="Links">
+      <a href="https://github.com/TheDejo/lithe#readme">Docs</a>
+      <a href="https://www.npmjs.com/package/@thedejo/lithe">npm</a>
+      <a href="https://github.com/TheDejo/lithe">GitHub</a>
+    </nav>
+  </header>
+
+  <main>
+    <div class="wrap hero">
+      <h1>A test runner for AI agents<span class="dot">.</span></h1>
+      <p class="lede">Write down what your agent should and shouldn't do. Run it on every commit. When its behaviour changes, Lithe shows you the step where it happened.</p>
+      <div class="actions">
+        <div class="install">
+          <span><span class="p">$ </span>npm i -D @thedejo/lithe</span>
+          <button class="copy" type="button" data-copy="npm install --save-dev @thedejo/lithe">Copy</button>
+        </div>
+        <a href="https://github.com/TheDejo/lithe#quick-start">Read the quick start</a>
+      </div>
+
+      <div class="stage reveal">
+<pre class="term" aria-label="Terminal output of a failing agent test with its trace"><span class="m">$</span> <span class="i">npx lithe</span>
+
+<span class="i">tests/trip-planner.test.ts</span>
+  <span class="no">✗ plans a day of sightseeing</span>
+  <span class="ok">✓</span> keeps the city in the plan
+
+  Expected: 'Navy Pier'
+  Received: [ 'Alinea', 'Girl &amp; the Goat' ]
+
+  <span class="i">Trace</span>
+  <span class="m">1.</span> <span class="a">note: query "Chicago restaurants"</span>
+  <span class="m">2.</span> search("Chicago restaurants") → ["Alinea", …]</pre>
+      </div>
+    </div>
+
+    <section class="wrap" aria-labelledby="features">
+      <div class="label">What you get</div>
+      <h2 id="features">The test runner you know, with what agents need.</h2>
+      <div class="grid reveal">
+        <div><span class="n">01</span><h3>Tests</h3><p><code>describe</code>, <code>test</code> and <code>expect</code>. TypeScript runs as is, with no config.</p></div>
+        <div><span class="n">02</span><h3>Mocks</h3><p>Stub the Anthropic or OpenAI client your agent already uses, and check every tool call.</p></div>
+        <div><span class="n">03</span><h3>Assertions</h3><p>Check meaning, not wording: parts of a string, a shape of JSON, one of several answers.</p></div>
+        <div><span class="n">04</span><h3>Retries</h3><p>Give real model calls more time and another try, and still see which tests needed it.</p></div>
+        <div><span class="n">05</span><h3>Traces</h3><p>Every model call, tool call and note is recorded, and printed under a failing test.</p></div>
+        <div><span class="n">06</span><h3>Compare</h3><p>Diff two runs and find the first step where an agent did something different.</p></div>
+      </div>
+    </section>
+
+    <section class="wrap" aria-labelledby="looks">
+      <div class="label">How it looks</div>
+      <h2 id="looks">Script the model. Test the agent.</h2>
+      <p class="intro">Stub the client, decide what the model says, and assert on what your agent does with it. No network, no API key.</p>
+      <div class="split reveal">
+<pre class="term code"><span class="cap">support.test.ts</span><span class="kw">const</span> <span class="var">create</span> <span class="pun">=</span> <span class="fn">spyOn</span><span class="pun">(</span>client<span class="pun">.</span>messages<span class="pun">,</span> <span class="str">"create"</span><span class="pun">);</span>
+
+<span class="fn">test</span><span class="pun">(</span><span class="str">"looks up the order first"</span><span class="pun">,</span> <span class="kw">async</span> <span class="pun">() =&gt; {</span>
+  create
+    <span class="pun">.</span><span class="me">mockResolvedValueOnce</span><span class="pun">(</span><span class="fn">toolUse</span><span class="pun">(</span><span class="str">"get_order"</span><span class="pun">))</span>
+    <span class="pun">.</span><span class="me">mockResolvedValueOnce</span><span class="pun">(</span><span class="fn">text</span><span class="pun">(</span><span class="str">"It ships Friday."</span><span class="pun">));</span>
+
+  <span class="kw">const</span> <span class="var">answer</span> <span class="pun">=</span> <span class="kw">await</span> <span class="fn">supportAgent</span><span class="pun">(</span>client<span class="pun">);</span>
+
+  <span class="fn">expect</span><span class="pun">(</span>create<span class="pun">).</span><span class="me">toHaveBeenCalledTimes</span><span class="pun">(</span><span class="num">2</span><span class="pun">);</span>
+  <span class="fn">expect</span><span class="pun">(</span>answer<span class="pun">).</span><span class="me">toContainAll</span><span class="pun">([</span><span class="str">"ships"</span><span class="pun">,</span> <span class="str">"friday"</span><span class="pun">]);</span>
+<span class="pun">});</span></pre>
+<pre class="term"><span class="cap">terminal</span><span class="m">$</span> <span class="i">npx lithe</span>
+
+<span class="i">tests/support.test.ts</span>
+  <span class="ok">✓</span> looks up the order first
+  <span class="ok">✓</span> answers when no lookup is needed
+  <span class="ok">✓</span> surfaces a refusal
+
+Tests: <span class="ok">3 passed</span> (3)</pre>
+      </div>
+    </section>
+
+    <section class="wrap" aria-labelledby="why">
+      <div class="why">
+        <div class="reveal">
+          <div class="label">Why it changed</div>
+          <h2 id="why">Tests tell you that it broke. Lithe tells you where.</h2>
+          <div class="points">
+            <div><span>1</span><p><b>Record.</b> Name a mock, wrap a client with <code>traced()</code>, or <code>note()</code> a decision.</p></div>
+            <div><span>2</span><p><b>Save.</b> <code>--report</code> keeps every result and trace, with the commit it came from.</p></div>
+            <div><span>3</span><p><b>Compare.</b> See what broke, what got fixed, and what passes but behaves differently.</p></div>
+          </div>
+        </div>
+<pre class="term reveal"><span class="m">$</span> <span class="i">npx lithe compare main.json branch.json</span>
+
+<span class="no">✗ now failing</span>
+  plans a day of sightseeing
+  <span class="m">first difference at step 1</span>
+  <span class="no">- note: query "things to do in Chicago"</span>
+  <span class="ok">+ note: query "Chicago restaurants"</span>
+
+<span class="a">~ behaviour changed</span>
+  keeps the city in the plan</pre>
+      </div>
+    </section>
+
+    <section class="wrap" aria-labelledby="ci">
+      <div class="label">In CI</div>
+      <h2 id="ci">One command, any pipeline.</h2>
+      <div class="ci reveal">
+        <div><h3>GitHub Actions</h3><p>Save a report on every build and compare pull requests against main.<code>npx lithe --report lithe-report.json</code></p></div>
+        <div><h3>Anywhere else</h3><p>GitLab, CircleCI, Azure, Jenkins. Lithe exits non-zero when a test fails.<code>npm ci &amp;&amp; npx lithe</code></p></div>
+        <div><h3>Real models</h3><p>More time and a second try for tests that call a live API.<code>npx lithe e2e --timeout 60000 --retries 2</code></p></div>
+      </div>
+    </section>
+
+    <div class="wrap closing reveal">
+      <h2>Test your agent before your users do<span class="dot">.</span></h2>
+      <div class="actions">
+        <div class="install">
+          <span><span class="p">$ </span>npm i -D @thedejo/lithe</span>
+          <button class="copy" type="button" data-copy="npm install --save-dev @thedejo/lithe">Copy</button>
+        </div>
+        <a href="https://github.com/TheDejo/lithe">View on GitHub</a>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <span>Lithe is MIT licensed. Made by <a href="https://thedejo.github.io/">Divine Ogbe</a>.</span>
+      <nav aria-label="Footer">
+        <a href="https://github.com/TheDejo/lithe">GitHub</a>
+        <a href="https://www.npmjs.com/package/@thedejo/lithe">npm</a>
+        <a href="https://github.com/TheDejo/lithe/blob/main/CONTRIBUTING.md">Contribute</a>
+      </nav>
+    </div>
+  </footer>
+
+  <script>
+    document.querySelectorAll(".copy").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var done = function (label) { btn.textContent = label; setTimeout(function () { btn.textContent = "Copy"; }, 1600); };
+        if (navigator.clipboard) {
+          navigator.clipboard.writeText(btn.dataset.copy).then(function () { done("Copied"); }, function () { done("Select to copy"); });
+        } else { done("Select to copy"); }
+      });
+    });
+
+    var items = document.querySelectorAll(".reveal");
+    if ("IntersectionObserver" in window) {
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); } });
+      }, { rootMargin: "0px 0px -8% 0px", threshold: 0.06 });
+      items.forEach(function (el) { io.observe(el); });
+    } else {
+      items.forEach(function (el) { el.classList.add("in"); });
+    }
+  </script>
+</body>
+</html>
