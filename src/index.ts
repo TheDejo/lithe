@@ -4,6 +4,8 @@ export { expect, AssertionError } from "./core/expect";
 export type { Assertion, Matchers, Expect } from "./core/expect";
 export { fn, spyOn, isMock } from "./core/mock";
 export type { Mock } from "./core/mock";
+export { note, traced } from "./core/trace";
+export type { TraceEvent } from "./core/trace";
 export { run } from "./core/runner";
 export type { RunOptions, TestResult, Status } from "./core/runner";
 export type { TestOptions } from "./core/registry";

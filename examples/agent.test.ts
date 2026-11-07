@@ -19,8 +19,10 @@ async function weatherAgent(question: string, llm: LLM, getWeather: (city: strin
 }
 
 describe("weather agent", () => {
-  const llm = fn<LLM>();
-  const getWeather = fn(async (city: string) => `18°C and sunny in ${city}`);
+  // Named mocks record every call in the test's trace, so a failure (or
+  // `lithe compare`) shows exactly what the agent did, step by step.
+  const llm = fn<LLM>().mockName("llm");
+  const getWeather = fn(async (city: string) => `64°F and sunny in ${city}`).mockName("getWeather");
 
   beforeEach(() => {
     llm.mockReset();
@@ -29,17 +31,17 @@ describe("weather agent", () => {
 
   test("calls the weather tool, then answers using its result", async () => {
     llm
-      .mockResolvedValueOnce("CALL getWeather(Lagos)")
-      .mockResolvedValueOnce("It's 18°C and sunny in Lagos right now.");
+      .mockResolvedValueOnce("CALL getWeather(San Francisco)")
+      .mockResolvedValueOnce("It's 64°F and sunny in San Francisco right now.");
 
-    const result = await weatherAgent("What's the weather in Lagos?", llm, getWeather);
+    const result = await weatherAgent("What's the weather in San Francisco?", llm, getWeather);
 
     expect(getWeather).toHaveBeenCalledTimes(1);
-    expect(getWeather).toHaveBeenCalledWith("Lagos");
+    expect(getWeather).toHaveBeenCalledWith("San Francisco");
     expect(result.steps).toBe(2);
     // LLM wording varies, so assert on meaning-bearing pieces, not exact text.
-    expect(result.answer).toContainAll(["lagos", "sunny"]);
-    expect(result.messages).toContainEqual({ role: "tool", content: expect.stringContaining("18°C") });
+    expect(result.answer).toContainAll(["san francisco", "sunny"]);
+    expect(result.messages).toContainEqual({ role: "tool", content: expect.stringContaining("64°F") });
   });
 
   test("answers directly when no tool is needed", async () => {
@@ -52,17 +54,17 @@ describe("weather agent", () => {
   });
 
   test("gives up on a runaway tool loop", async () => {
-    llm.mockResolvedValue("CALL getWeather(Lagos)");
+    llm.mockResolvedValue("CALL getWeather(San Francisco)");
 
     await expect(weatherAgent("loop forever", llm, getWeather)).rejects.toThrow("did not finish");
     expect(llm).toHaveBeenCalledTimes(5);
   });
 
   test("returns structured JSON when asked", async () => {
-    llm.mockResolvedValueOnce('{"city":"Lagos","tempC":18,"conditions":"sunny"}');
+    llm.mockResolvedValueOnce('{"city":"San Francisco","tempF":64,"conditions":"sunny"}');
 
-    const { answer } = await weatherAgent("weather in Lagos as JSON", llm, getWeather);
+    const { answer } = await weatherAgent("weather in San Francisco as JSON", llm, getWeather);
 
-    expect(answer).toBeJSON({ city: "Lagos", tempC: expect.any(Number) });
+    expect(answer).toBeJSON({ city: "San Francisco", tempF: expect.any(Number) });
   });
 });

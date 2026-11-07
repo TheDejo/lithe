@@ -1,6 +1,6 @@
 {
   "name": "@thedejo/lithe",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Jest-style test runner for AI agents",
   "main": "dist/index.js",
   "bin": {

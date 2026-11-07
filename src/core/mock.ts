@@ -1,3 +1,5 @@
+import { recordCall } from "./trace";
+
 type AnyFn = (...args: any[]) => any;
 
 export interface MockResult {
@@ -27,6 +29,9 @@ export interface Mock<F extends AnyFn = AnyFn> {
   mockReset(): this;
   /** For spies: put the original method back. */
   mockRestore(): void;
+  /** Name this mock. Named mocks record every call in the test's trace. */
+  mockName(name: string): this;
+  getMockName(): string | undefined;
   readonly _isLitheMock: true;
 }
 
@@ -35,18 +40,22 @@ export function fn<F extends AnyFn = AnyFn>(implementation?: F): Mock<F> {
   let impl: AnyFn | undefined = implementation;
   let onceQueue: AnyFn[] = [];
   let restore: () => void = () => {};
+  let name: string | undefined;
 
   const mock = function (this: unknown, ...args: any[]) {
     mock.mock.calls.push(args as Parameters<F>);
     const current = onceQueue.length ? onceQueue.shift() : impl;
-    try {
-      const value = current ? current.apply(this, args) : undefined;
-      mock.mock.results.push({ type: "return", value });
-      return value;
-    } catch (err) {
-      mock.mock.results.push({ type: "throw", value: err });
-      throw err;
-    }
+    const invoke = () => {
+      try {
+        const value = current ? current.apply(this, args) : undefined;
+        mock.mock.results.push({ type: "return", value });
+        return value;
+      } catch (err) {
+        mock.mock.results.push({ type: "throw", value: err });
+        throw err;
+      }
+    };
+    return name ? recordCall(name, args, invoke) : invoke();
   } as Mock<F>;
 
   Object.defineProperty(mock, "_isLitheMock", { value: true });
@@ -72,6 +81,8 @@ export function fn<F extends AnyFn = AnyFn>(implementation?: F): Mock<F> {
     return mock;
   };
   mock.mockRestore = () => restore();
+  mock.mockName = (n) => ((name = n), mock);
+  mock.getMockName = () => name;
   (mock as any)._setRestore = (r: () => void) => (restore = r);
 
   return mock;
@@ -89,7 +100,7 @@ export function spyOn<T extends object, K extends keyof T>(
   if (typeof original !== "function") {
     throw new TypeError(`Cannot spy on ${String(method)}: it is not a function`);
   }
-  const spy = fn(original as unknown as AnyFn);
+  const spy = fn(original as unknown as AnyFn).mockName(String(method));
   (spy as any)._setRestore(() => {
     object[method] = original;
   });
