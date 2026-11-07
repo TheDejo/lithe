@@ -1,10 +1,10 @@
 {
   "name": "@thedejo/lithe",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Jest-style test runner for AI agents",
   "main": "dist/index.js",
   "bin": {
-    "lithe": "dist/src/cli/index.js"
+    "lithe": "dist/cli/index.js"
   },
   "files": [
     "dist"
@@ -12,8 +12,8 @@
   "scripts": {
     "build": "tsc",
     "prepublishOnly": "npm run build",
-    "test": "node dist/cli/index.js test",
-    "dev": "ts-node src/cli/index.ts test"
+    "test": "npm run build && node dist/cli/index.js && node --test test/cli.integration.mjs",
+    "dev": "tsx src/cli/index.ts"
   },
   "keywords": [
     "ai",
@@ -25,12 +25,19 @@
   "author": "Dejo",
   "license": "MIT",
   "devDependencies": {
-    "@types/commander": "^2.12.0",
     "@types/node": "^20.4.5",
-    "ts-node": "^10.9.1",
     "typescript": "^5.1.6"
   },
   "dependencies": {
-    "commander": "^14.0.3"
+    "commander": "^14.0.3",
+    "tsx": "^4.23.15"
+  },
+  "types": "dist/index.d.ts",
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TheDejo/lithe.git"
   }
 }
