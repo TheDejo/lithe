@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": "."
+  },
+  "include": [
+    "src",
+    "examples",
+    "test"
+  ],
+  "exclude": [
+    "test/fixtures/syntax-error.fixture.ts"
+  ]
+}

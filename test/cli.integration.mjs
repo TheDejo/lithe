@@ -27,7 +27,8 @@ test("exits 1 and reports each kind of failure", () => {
 test("exits 0 when everything passes", () => {
   const { code, out } = lithe("examples");
   assert.equal(code, 0, out);
-  assert.match(out, /Test files: 2 passed/);
+  assert.match(out, /Test files: \d+ passed \(\d+\)/);
+  assert.doesNotMatch(out, /failed/);
 });
 
 test(".only skips the other tests in the file", () => {
@@ -39,7 +40,7 @@ test(".only skips the other tests in the file", () => {
 test("--test-name-pattern filters tests", () => {
   const { code, out } = lithe("examples", "-t", "runaway");
   assert.equal(code, 0, out);
-  assert.match(out, /1 passed, 4 skipped/);
+  assert.match(out, /Tests: +1 passed, \d+ skipped/);
 });
 
 test("reports files that fail to load", () => {

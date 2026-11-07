@@ -1,8 +1,21 @@
 # Lithe
 
+[![npm version](https://img.shields.io/npm/v/@thedejo/lithe?color=cb3837&label=npm)](https://www.npmjs.com/package/@thedejo/lithe)
+[![npm downloads](https://img.shields.io/npm/dm/@thedejo/lithe?color=cb3837)](https://www.npmjs.com/package/@thedejo/lithe)
+[![CI](https://github.com/TheDejo/lithe/actions/workflows/ci.yml/badge.svg)](https://github.com/TheDejo/lithe/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 **Test your AI agents like real software.**
 
-Lithe is an open-source, Jest-style test runner built for AI agents and LLM-powered code. Write tests in TypeScript or JavaScript, mock your LLM and tools, assert on *meaning* instead of exact wording, retry flaky model calls, and gate your CI on the result.
+Lithe is an open-source, Jest-style test runner built for AI agents and LLM-powered code. Write tests in TypeScript or JavaScript, mock your LLM and tools, assert on *meaning* instead of exact wording, retry flaky model calls, and gate your CI on the result. When an agent's behaviour changes, Lithe shows you **what it did differently, step by step**.
+
+![A failing agent test showing the agent's step-by-step trace, then lithe compare showing the first step where its behaviour diverged from main](https://raw.githubusercontent.com/TheDejo/lithe/main/docs/demo.png)
+
+```bash
+npm install --save-dev @thedejo/lithe
+```
+
+Works with any LLM provider, including the [Anthropic](examples/integrations/anthropic-sdk.test.ts) and [OpenAI](examples/integrations/openai-sdk.test.ts) SDKs.
 
 ```ts
 import { test, expect } from "@thedejo/lithe";
@@ -41,6 +54,7 @@ Time:       1.02s
 - [Running in CI/CD](#running-in-cicd)
 - [Developing Lithe](#developing-lithe)
 - [Roadmap](#roadmap)
+- [Contributing](#contributing)
 
 ---
 
@@ -77,6 +91,8 @@ Lithe gives you the tools of a normal test runner, plus the ones agents need:
 ```bash
 npm install --save-dev @thedejo/lithe
 ```
+
+> Note the `@thedejo/` scope: the unscoped `lithe` package on npm is an unrelated project.
 
 ### 2. Add a test script to `package.json`
 
@@ -208,6 +224,36 @@ describe("weather agent", () => {
 ```
 
 The full, runnable version is in [`examples/agent.test.ts`](examples/agent.test.ts).
+
+### Testing apps built on the Anthropic or OpenAI SDK
+
+You don't need to wrap the SDK to test it. Construct the real client with a dummy key and stub its method with `spyOn`: every request your agent sends is recorded (and appears in the test's trace), and you script the responses.
+
+```ts
+import Anthropic from "@anthropic-ai/sdk";
+import { test, expect, spyOn } from "@thedejo/lithe";
+
+const client = new Anthropic({ apiKey: "test-key" });
+const create = spyOn(client.messages, "create");
+
+test("looks up the order before answering", async () => {
+  create
+    .mockResolvedValueOnce(toolUseReply("get_order", { orderId: "A-1042" }))
+    .mockResolvedValueOnce(textReply("Order A-1042 has shipped and should arrive Friday."));
+
+  const answer = await supportAgent(client, "Where is my order A-1042?");
+
+  expect(create).toHaveBeenCalledTimes(2);
+  expect(answer).toContainAll(["shipped", "friday"]);
+});
+```
+
+Complete, runnable examples, including the tool-result round trip and refusal handling:
+
+- [`examples/integrations/anthropic-sdk.test.ts`](examples/integrations/anthropic-sdk.test.ts): Anthropic Messages API with tool use
+- [`examples/integrations/openai-sdk.test.ts`](examples/integrations/openai-sdk.test.ts): OpenAI Chat Completions with function calling
+
+Remove the `spyOn` line and the same test runs against the real API.
 
 ### Testing against a real model
 
@@ -679,7 +725,7 @@ To work on Lithe itself:
 git clone https://github.com/TheDejo/lithe.git
 cd lithe
 npm install
-npm test          # builds, runs Lithe on its own tests, then the CLI integration tests
+npm test          # builds, type-checks, runs Lithe on its own tests, then the CLI integration tests
 ```
 
 Useful commands:
@@ -710,12 +756,13 @@ src/
     reporter.ts      console output and summary
     report.ts        --report run records and `lithe compare`
 examples/            example tests (also part of the test suite)
+  integrations/      agents built on the Anthropic and OpenAI SDKs, tested with spyOn
 test/                Lithe's own tests (written with Lithe)
   fixtures/          intentionally failing files for the integration tests
   cli.integration.mjs  checks exit codes and failure output via node:test
 ```
 
-Pull requests are welcome. Please add or update tests for any change. CI runs `npm test` on Node 20 and 22.
+Pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md). CI runs `npm test` on Node 20 and 22.
 
 ### Releasing
 
@@ -744,12 +791,18 @@ The workflow checks the tag matches `package.json`, runs the tests, publishes to
 - [x] Mocking layer (`fn`, `spyOn`)
 - [x] AI-friendly assertions (`toContainAny`, `toBeJSON`, asymmetric matchers, …)
 - [x] CI-friendly exit codes and docs
+- [x] Traces, JSON run records and `lithe compare`
 - [ ] Semantic assertions (embedding / LLM-judged similarity)
 - [ ] Record & replay of real model responses
 - [ ] Watch mode
-- [x] Traces, JSON run records and `lithe compare`
 - [ ] JUnit reporter for CI dashboards
 - [ ] Parallel file execution
+
+---
+
+## Contributing
+
+Contributions, ideas, and feedback are welcome: open an [issue](https://github.com/TheDejo/lithe/issues) or see [CONTRIBUTING.md](CONTRIBUTING.md). If Lithe helps you, a ⭐ on GitHub helps other people find it.
 
 ---
 
