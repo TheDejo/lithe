@@ -1,6 +1,7 @@
 import { relative } from "path";
 import { inspect } from "util";
 import type { TestResult } from "../core/runner";
+import { formatStep } from "./report";
 
 const useColor = process.stdout.isTTY && !process.env.NO_COLOR && process.env.TERM !== "dumb"
   || !!process.env.FORCE_COLOR;
@@ -74,6 +75,7 @@ export class Reporter {
         const where = f.file ? c.gray(`  ${relative(this.cwd, f.file)}`) : "";
         this.log(`\n${c.red(`${i + 1}) ${f.path.join(" › ")}`)}${where}`);
         for (const e of f.errors) this.log(indentBlock(formatError(e, this.cwd), "   "));
+        if (f.trace?.length) this.log(indentBlock(formatTrace(f.trace), "   "));
       });
     }
 
@@ -96,6 +98,21 @@ export class Reporter {
     this.log(`${c.bold("Time:      ")} ${ms(performance.now() - this.start)}`);
     return fail === 0;
   }
+}
+
+const TRACE_TAIL = 15;
+
+function formatTrace(trace: NonNullable<TestResult["trace"]>): string {
+  const shown = trace.slice(-TRACE_TAIL);
+  const lines = [
+    "",
+    c.bold(`Trace (${trace.length} step${trace.length === 1 ? "" : "s"}${trace.length > TRACE_TAIL ? `, last ${TRACE_TAIL} shown` : ""}):`),
+    ...shown.map((e, i) => {
+      const n = trace.length - shown.length + i + 1;
+      return `${c.gray(`${String(n).padStart(3)}. +${e.at}ms`)} ${e.type === "note" ? c.cyan(formatStep(e)) : formatStep(e)}`;
+    }),
+  ];
+  return lines.join("\n");
 }
 
 function indentBlock(s: string, pad: string) {

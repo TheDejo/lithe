@@ -8,7 +8,7 @@ Lithe is an open-source, Jest-style test runner built for AI agents and LLM-powe
 import { test, expect } from "@thedejo/lithe";
 
 test("recommends frontend roles", async () => {
-  const result = await jobAgent("frontend jobs in Lagos");
+  const result = await jobAgent("frontend jobs in New York");
 
   expect(result.jobs).toContain("Frontend Developer");
   expect(result.summary).toContainAny(["react", "frontend", "ui"]);
@@ -36,6 +36,7 @@ Time:       1.02s
 - [Testing agents](#testing-agents)
 - [Assertions reference](#assertions-reference)
 - [Mocks](#mocks)
+- [Traces and run records](#traces-and-run-records)
 - [CLI reference](#cli-reference)
 - [Running in CI/CD](#running-in-cicd)
 - [Developing Lithe](#developing-lithe)
@@ -61,6 +62,8 @@ Lithe gives you the tools of a normal test runner, plus the ones agents need:
 | Mock LLM clients and tools (`fn`, `spyOn`)    | ✅    |
 | Fuzzy assertions for non-deterministic output | ✅    |
 | Per-test timeouts and automatic retries       | ✅    |
+| Step-by-step traces of what the agent did     | ✅    |
+| Run records you can diff across commits       | ✅    |
 | CI-friendly exit codes                        | ✅    |
 
 ---
@@ -176,8 +179,9 @@ import { describe, test, expect, fn, beforeEach } from "@thedejo/lithe";
 import { weatherAgent } from "../src/agent";
 
 describe("weather agent", () => {
-  const llm = fn<(messages: Message[]) => Promise<string>>();
-  const getWeather = fn(async (city: string) => `18°C and sunny in ${city}`);
+  // .mockName() records every call in the test's trace (see "Traces and run records")
+  const llm = fn<(messages: Message[]) => Promise<string>>().mockName("llm");
+  const getWeather = fn(async (city: string) => `64°F and sunny in ${city}`).mockName("getWeather");
 
   beforeEach(() => {
     llm.mockReset();
@@ -186,18 +190,18 @@ describe("weather agent", () => {
 
   test("calls the tool, then answers using its result", async () => {
     llm
-      .mockResolvedValueOnce("CALL getWeather(Lagos)")         // step 1: model asks for a tool
-      .mockResolvedValueOnce("It's 18°C and sunny in Lagos."); // step 2: model answers
+      .mockResolvedValueOnce("CALL getWeather(San Francisco)")          // step 1: model asks for a tool
+      .mockResolvedValueOnce("It's 64°F and sunny in San Francisco.");  // step 2: model answers
 
-    const result = await weatherAgent("Weather in Lagos?", llm, getWeather);
+    const result = await weatherAgent("Weather in San Francisco?", llm, getWeather);
 
-    expect(getWeather).toHaveBeenCalledWith("Lagos");
+    expect(getWeather).toHaveBeenCalledWith("San Francisco");
     expect(result.steps).toBe(2);
-    expect(result.answer).toContainAll(["lagos", "sunny"]);
+    expect(result.answer).toContainAll(["san francisco", "sunny"]);
   });
 
   test("stops a runaway tool loop", async () => {
-    llm.mockResolvedValue("CALL getWeather(Lagos)");
+    llm.mockResolvedValue("CALL getWeather(San Francisco)");
     await expect(weatherAgent("loop", llm, getWeather)).rejects.toThrow("did not finish");
   });
 });
@@ -314,6 +318,7 @@ search.mock.calls;    // [[args...], ...]
 search.mock.results;  // [{ type: "return" | "throw", value }, ...]
 search.mockClear();   // forget calls
 search.mockReset();   // forget calls and implementations
+search.mockName("search"); // record every call in the test's trace
 ```
 
 | Matcher | Passes when |
@@ -338,6 +343,76 @@ spy.mockRestore();                        // put the original back
 
 ---
 
+## Traces and run records
+
+A pass/fail result tells you *that* an agent's behaviour changed, not *why*. Lithe records what the agent actually did during each test, so that you, a reviewer or another agent can reconstruct the reasoning later:
+
+- **Traces**: every call to a traced function or named mock (arguments, result or error, timing), plus any notes you record.
+- **Run records** (`--report`): a JSON file with every test's result, errors and trace, plus the git commit, branch and CI run it came from.
+- **Comparisons** (`lithe compare`): which tests changed between two runs, and the first step where each agent's behaviour diverged.
+
+### Recording steps
+
+```ts
+import { test, expect, fn, traced, note } from "@thedejo/lithe";
+
+// Wrap real clients and tools: calls pass through unchanged and get recorded.
+const llm = traced("llm", (prompt: string) => client.complete(prompt));
+
+// Or name a mock: same recording, plus all the mock matchers.
+const search = fn(async (q: string) => ["Navy Pier", "Millennium Park"]).mockName("search");
+
+test("plans a day in Chicago", async () => {
+  const plan = await tripAgent("Chicago", { llm, search });
+  note("agent picked the first result", { pick: plan.stops[0] }); // record the "why"
+  expect(plan.stops).toContain("Navy Pier");
+});
+```
+
+`note(message, data?)` does nothing outside a running test, so you can call it from inside your agent code too, for example to record which branch of a decision it took and why. Values are stored safely: cycles, functions and very long strings are handled.
+
+When a test fails, its trace is printed under the error:
+
+```text
+1) plans a trip  tests/trip.test.ts
+   expect(received).toContain(expected)
+
+   Expected: 'things to do'
+   Received: 'Top pick for "Chicago restaurants"'
+
+   Trace (2 steps):
+     1. +1ms note: chose search query {"query":"Chicago restaurants"}
+     2. +1ms search("Chicago restaurants") → ["Top pick for \"Chicago restaurants\""]
+```
+
+### Saving a run record
+
+```bash
+npx lithe --report lithe-report.json
+```
+
+The file includes the Lithe and Node versions, the git commit and branch (and whether the tree had uncommitted changes), the CI run URL on GitHub Actions, GitLab and CircleCI, a summary, and for each test its id, status, duration, attempts, errors and trace. Keep these as CI artifacts and every run has a permanent, machine-readable explanation attached.
+
+### Comparing two runs
+
+```bash
+npx lithe compare main-report.json branch-report.json
+```
+
+```text
+✗ now failing  tests/trip.test.ts > plans a trip (pass → fail)
+   first difference at step 1:
+   - note: chose search query {"query":"things to do in Chicago"}
+   + note: chose search query {"query":"Chicago restaurants"}
+   error: expect(received).toContain(expected)
+
+1 change(s): 1 now failing, 0 now passing, 0 changed, 0 added, 0 removed
+```
+
+It lists tests that started failing, started passing, were added or removed, and tests that still pass but whose **behaviour changed** (different steps, arguments or outputs). Timing is ignored. The exit code is `1` if any test went from passing to failing, so you can use it as a CI gate. See [comparing against `main` in CI](#record-every-run-and-compare-pull-requests-against-main).
+
+---
+
 ## CLI reference
 
 ```bash
@@ -352,6 +427,7 @@ lithe [test] [patterns...] [options]
 | `--retries <n>` | Retry failing tests up to `n` times (default `0`). Per-test `retries` overrides this. |
 | `--bail` | Stop after the first failure. |
 | `--list` | Print the test files that would run, then exit. |
+| `--report <file>` | Write a JSON run record (results, errors, traces, git commit) to `<file>`. |
 | `-V, --version` | Print the version. |
 
 Examples:
@@ -363,7 +439,16 @@ npx lithe tests/agent.test.ts      # one file
 npx lithe refund                   # files whose path contains "refund"
 npx lithe -t "tool call"           # tests whose name matches "tool call"
 npx lithe tests/e2e --timeout 60000 --retries 2
+npx lithe --report lithe-report.json
 ```
+
+To compare two run records:
+
+```bash
+lithe compare <before.json> <after.json>
+```
+
+It exits `0` normally, `1` if any test went from passing to failing, and `2` if a file isn't a Lithe report.
 
 **Exit codes:** `0` when every test passed, `1` when any test failed, a file failed to load, or no test files were found. CI systems use this to mark the job as failed.
 
@@ -447,6 +532,56 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
 
+#### Record every run and compare pull requests against `main`
+
+Save a run record from every run, and on pull requests show what changed relative to the latest successful run on `main`:
+
+```yaml
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+  actions: read   # lets the job download main's run record
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: Run Lithe tests
+        run: npx lithe --report lithe-report.json
+
+      - name: Save run record
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lithe-report
+          path: lithe-report.json
+
+      - name: Compare with main
+        if: always() && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          RUN_ID=$(gh run list --workflow "${{ github.workflow }}" --branch main --status success --limit 1 --json databaseId -q '.[0].databaseId')
+          if [ -z "$RUN_ID" ]; then echo "No run record on main yet."; exit 0; fi
+          gh run download "$RUN_ID" -n lithe-report -D main-report
+          npx lithe compare main-report/lithe-report.json lithe-report.json
+```
+
+The comparison appears in the job log. Because each record names its commit, anyone (or any agent) looking at the artifact later can tell exactly which change produced which behaviour.
+
 ### GitLab CI
 
 `.gitlab-ci.yml`:
@@ -463,7 +598,10 @@ test:
   stage: test
   script:
     - npm ci --cache .npm --prefer-offline
-    - npx lithe
+    - npx lithe --report lithe-report.json
+  artifacts:
+    when: always
+    paths: [lithe-report.json]
 ```
 
 For real-model tests, add your key under **Settings → CI/CD → Variables** (masked) and run `npx lithe tests/e2e --timeout 60000 --retries 2` in a separate job.
@@ -528,6 +666,7 @@ npm ci && npx lithe
 - **Mock by default.** Mocked tests are free, fast and deterministic. Save real-model tests for a separate job or schedule.
 - **Use `--retries`** for real-model tests to absorb occasional rate limits and network blips. Retried tests are flagged in the output (`[3 attempts]`), so flakiness stays visible.
 - **Use `--bail`** for faster feedback on long suites.
+- **Keep run records** (`--report`) as artifacts so failures can be explained after the fact, and compare them with `lithe compare`.
 - **Open handles are fine.** Lithe exits when tests finish even if an HTTP client keeps a socket open, so jobs don't hang.
 
 ---
@@ -564,10 +703,12 @@ src/
     expect.ts        expect() and all matchers
     equals.ts        deep equality and asymmetric matchers
     mock.ts          fn() and spyOn()
+    trace.ts         traced(), note() and per-test trace recording
   cli/
     index.ts         `lithe` command
     discover.ts      finds test files
     reporter.ts      console output and summary
+    report.ts        --report run records and `lithe compare`
 examples/            example tests (also part of the test suite)
 test/                Lithe's own tests (written with Lithe)
   fixtures/          intentionally failing files for the integration tests
@@ -606,7 +747,8 @@ The workflow checks the tag matches `package.json`, runs the tests, publishes to
 - [ ] Semantic assertions (embedding / LLM-judged similarity)
 - [ ] Record & replay of real model responses
 - [ ] Watch mode
-- [ ] JUnit / JSON reporters for CI dashboards
+- [x] Traces, JSON run records and `lithe compare`
+- [ ] JUnit reporter for CI dashboards
 - [ ] Parallel file execution
 
 ---

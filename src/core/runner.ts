@@ -1,4 +1,5 @@
 import { getRoot, hasOnly, HookFn, resetRegistry, Suite, TestCase } from "./registry";
+import { beginTrace, endTrace, TraceEvent } from "./trace";
 
 export type Status = "pass" | "fail" | "skip" | "todo";
 
@@ -10,6 +11,8 @@ export interface TestResult {
   duration: number;
   attempts: number;
   errors: unknown[];
+  /** Steps recorded during the final attempt: traced calls, named mocks and notes. */
+  trace?: TraceEvent[];
 }
 
 export interface RunOptions {
@@ -146,10 +149,12 @@ async function runTest(test: TestCase, ctx: Ctx): Promise<void> {
   const start = performance.now();
   let errors: unknown[] = [];
   let attempts = 0;
+  let trace: TraceEvent[] = [];
 
   while (attempts < maxAttempts) {
     attempts++;
     errors = [];
+    beginTrace();
     for (const s of chain) {
       errors.push(...(await runHooks(s.hooks.beforeEach, ctx, "beforeEach hook")));
       if (errors.length) break;
@@ -164,6 +169,7 @@ async function runTest(test: TestCase, ctx: Ctx): Promise<void> {
     for (const s of [...chain].reverse()) {
       errors.push(...(await runHooks(s.hooks.afterEach, ctx, "afterEach hook")));
     }
+    trace = endTrace();
     if (!errors.length) break;
   }
 
@@ -173,6 +179,7 @@ async function runTest(test: TestCase, ctx: Ctx): Promise<void> {
     duration: performance.now() - start,
     attempts,
     errors,
+    trace: trace.length ? trace : undefined,
   });
 }
 
