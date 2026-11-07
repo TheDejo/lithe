@@ -576,6 +576,23 @@ test/                Lithe's own tests (written with Lithe)
 
 Pull requests are welcome. Please add or update tests for any change. CI runs `npm test` on Node 20 and 22.
 
+### Releasing
+
+Releases are published to npm by [`.github/workflows/release.yml`](.github/workflows/release.yml).
+
+One-time setup: the workflow uses [npm trusted publishing](https://docs.npmjs.com/trusted-publishers), so no npm token is stored in GitHub. On npmjs.com open the package → **Settings** → **Trusted Publisher** → **GitHub Actions**, and enter owner `TheDejo`, repository `lithe`, workflow filename `release.yml`.
+
+To release:
+
+1. Bump `version` in `package.json` (e.g. `npm version minor --no-git-tag-version`) and merge it to `main`.
+2. Tag that commit and push the tag:
+
+   ```bash
+   git tag v0.3.0 && git push origin v0.3.0
+   ```
+
+The workflow checks the tag matches `package.json`, runs the tests, publishes to npm with provenance, and creates a GitHub Release with generated notes.
+
 ---
 
 ## Roadmap
