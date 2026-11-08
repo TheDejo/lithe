@@ -6,6 +6,8 @@ export { fn, spyOn, isMock } from "./core/mock";
 export type { Mock } from "./core/mock";
 export { note, traced } from "./core/trace";
 export { configure } from "./core/semantic";
+export { recorded } from "./core/recordings";
+export type { RecordingMode } from "./core/recordings";
 export type { Judge, Embedder, LitheConfig } from "./core/semantic";
 export type { TraceEvent } from "./core/trace";
 export { run } from "./core/runner";

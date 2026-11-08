@@ -7,8 +7,11 @@ import { resetRegistry } from "../core/registry";
 import { discover } from "./discover";
 import { Reporter, c } from "./reporter";
 import { buildReport, compareReports, formatStep, readReport, TestChange } from "./report";
+import { buildJUnit } from "./junit";
+import { watch } from "./watch";
+import { saveRecordings, setRecordingMode } from "../core/recordings";
 import { mkdirSync, writeFileSync } from "fs";
-import { dirname, resolve } from "path";
+import { dirname, relative, resolve } from "path";
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { version } = require("../../package.json");
@@ -42,9 +45,22 @@ interface CliOptions {
   list?: boolean;
   report?: string;
   setup?: string[];
+  junit?: string;
+  record?: boolean;
+  rerecord?: boolean;
+  watch?: boolean;
 }
 
 async function main(patterns: string[], opts: CliOptions): Promise<number> {
+  if (opts.watch) {
+    const args = process.argv.slice(2).filter((a) => a !== "--watch" && a !== "-w");
+    return watch({ cwd: process.cwd(), cliPath: __filename, args, ignore: [opts.report, opts.junit].filter(Boolean) as string[] });
+  }
+  if (opts.record && opts.rerecord) {
+    console.error(c.red("Use either --record or --rerecord, not both."));
+    return 1;
+  }
+  setRecordingMode(opts.rerecord ? "rerecord" : opts.record ? "record" : "replay");
   const cwd = process.cwd();
   const files = discover(cwd, patterns);
 
@@ -110,6 +126,7 @@ async function main(patterns: string[], opts: CliOptions): Promise<number> {
       onSuiteStart: (p) => reporter.suiteStart(p),
     });
     reporter.fileEnd(results);
+    for (const path of saveRecordings()) console.log(c.gray(`Saved recordings to ${relative(cwd, path)}`));
     all.push(...results);
     if (results.some((r) => r.status === "fail")) {
       failed = true;
@@ -118,6 +135,13 @@ async function main(patterns: string[], opts: CliOptions): Promise<number> {
   }
 
   const ok = reporter.finish();
+
+  if (opts.junit) {
+    const out = resolve(cwd, opts.junit);
+    mkdirSync(dirname(out), { recursive: true });
+    writeFileSync(out, buildJUnit(all, { cwd, durationMs: performance.now() - started }));
+    console.log(c.gray(`JUnit report written to ${opts.junit}`));
+  }
 
   if (opts.report) {
     const out = resolve(cwd, opts.report);
@@ -147,6 +171,10 @@ program
   .option("--bail", "stop after the first failing test")
   .option("--list", "list the test files that would run, then exit")
   .option("--setup <file>", "load a file before the tests, e.g. to configure({ judge, embed }); repeatable", collect, [])
+  .option("--junit <file>", "write a JUnit XML report to <file>, for CI dashboards")
+  .option("--record", "call recorded() functions for real when no recording exists, and save the responses")
+  .option("--rerecord", "call every recorded() function for real and replace its saved responses")
+  .option("-w, --watch", "re-run the tests whenever a file changes")
   .option("--report <file>", "write a JSON record of the run (results, errors, traces, git commit) to <file>")
   .action(async (patterns: string[], opts: CliOptions) => {
     const code = await main(patterns, opts);
