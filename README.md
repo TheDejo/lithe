@@ -144,6 +144,14 @@ npx lithe --watch
 
 Press Enter to run again, or `q` to quit. Each run starts fresh, so edits to your agent and your tests are always picked up.
 
+With many test files, run several at once:
+
+```bash
+npx lithe --jobs 4
+```
+
+Each file runs in its own process. Output is printed one file at a time, so it never interleaves, and failures, the summary, `--report` and `--junit` cover every file. `--jobs auto` uses one process per CPU core, minus one. Tests within a file still run in order, so hooks and shared state work as usual.
+
 ---
 
 ## Writing tests
@@ -638,6 +646,7 @@ lithe [test] [patterns...] [options]
 | `--record` | Call [`recorded()`](#record-and-replay) functions for real when there's no recording yet, and save the responses. |
 | `--rerecord` | Call every `recorded()` function for real and replace its saved responses. |
 | `--junit <file>` | Write a [JUnit XML report](#junit-reports) to `<file>` for CI dashboards. |
+| `-j, --jobs <n>` | Run up to `n` test files at the same time, each in its own process. `auto` uses the number of CPU cores minus one. |
 | `-w, --watch` | Re-run the tests whenever a file changes. Press Enter to run again, `q` to quit. |
 | `--setup <file>` | Load a file before the tests, for example to [`configure()`](#choosing-the-model) a judge. Repeat it for more than one file. |
 | `-V, --version` | Print the version. |
@@ -893,6 +902,7 @@ Each test file becomes a `<testsuite>` and each test a `<testcase>`. Failing tes
 - **Keep API keys in your CI's secret store**, never in test files. Read them with `process.env`.
 - **Mock by default.** Mocked tests are free, fast and deterministic. Save real-model tests for a separate job or schedule.
 - **Use `--retries`** for real-model tests to absorb occasional rate limits and network blips. Retried tests are flagged in the output (`[3 attempts]`), so flakiness stays visible.
+- **Use `--jobs`** to run test files in parallel. Real-model tests spend most of their time waiting on the network, so they speed up a lot. Watch your provider's rate limits.
 - **Use `--bail`** for faster feedback on long suites.
 - **Record and replay real responses** with [`recorded()`](#record-and-replay) and a committed `__recordings__` folder, so CI tests real model output without an API key.
 - **Keep run records** (`--report`) as artifacts so failures can be explained after the fact, and compare them with `lithe compare`.
@@ -979,7 +989,9 @@ The workflow checks the tag matches `package.json`, runs the tests, publishes to
 - [x] Record and replay of real model responses (`recorded`, `--record`)
 - [x] Watch mode (`--watch`)
 - [x] JUnit reports for CI dashboards (`--junit`)
-- [ ] Parallel file execution
+- [x] Parallel file execution (`--jobs`)
+
+Everything on the original roadmap is done. Ideas and requests are welcome in [issues](https://github.com/TheDejo/lithe/issues).
 
 ---
 
