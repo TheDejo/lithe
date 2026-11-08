@@ -51,6 +51,7 @@ Time:       1.02s
 - [Testing agents](#testing-agents)
 - [Assertions reference](#assertions-reference)
 - [Mocks](#mocks)
+- [Semantic assertions](#semantic-assertions)
 - [Traces and run records](#traces-and-run-records)
 - [CLI reference](#cli-reference)
 - [Running in CI/CD](#running-in-cicd)
@@ -312,6 +313,16 @@ Every matcher can be negated with `.not`, for example `expect(x).not.toBe(1)`.
 | `toBeJSON(shape?)` | string parses as JSON, optionally matching a partial shape |
 | `toSatisfy(fn, description?)` | `fn(received)` returns truthy. Use this for anything custom |
 
+### Semantic (async, always `await`)
+
+These call a model you configure. See [Semantic assertions](#semantic-assertions).
+
+| Matcher | Passes when |
+| --- | --- |
+| `await toMean(reference)` | an LLM judge says the value means the same as `reference` |
+| `await toMeetCriteria(criteria)` | an LLM judge says the value meets every criterion (a string or an array) |
+| `await toBeSimilarTo(text, { threshold })` | the embeddings' cosine similarity is at least `threshold` (default `0.8`) |
+
 ### Async
 
 ```ts
@@ -388,6 +399,90 @@ spy.mockResolvedValue(fakeCompletion);   // optional: stop hitting the network
 // ...
 spy.mockRestore();                        // put the original back
 ```
+
+---
+
+## Semantic assertions
+
+Some things can't be checked with string matching: whether an answer *means* the right thing, or whether it's polite, accurate and on topic. Semantic assertions ask a model you choose to decide.
+
+```ts
+import { test, expect } from "@thedejo/lithe";
+
+test("explains the delivery date", async () => {
+  const answer = await supportAgent("When will order A-1042 arrive?");
+
+  await expect(answer).toMean("The order will arrive on Friday.");
+
+  await expect(answer).toMeetCriteria([
+    "Gives a delivery day",
+    "Does not promise a specific time of day",
+    "Is polite",
+  ]);
+
+  await expect(answer).toBeSimilarTo("Your order arrives Friday.", { threshold: 0.85 });
+});
+```
+
+- **`toMean(reference)`**: an LLM judge decides whether the value means the same as the reference answer. Wording and length can differ; facts and intent must match.
+- **`toMeetCriteria(criteria)`**: an LLM judge checks the value against each criterion.
+- **`toBeSimilarTo(text, { threshold })`**: compares embeddings. It's cheaper and faster than a judge, but cruder.
+
+They work with `.not` and `.resolves` like every other matcher. When one fails, the message includes the judge's reason, and every judge or embedding call appears in the test's [trace](#traces-and-run-records).
+
+**Always `await` them.** If you forget, Lithe still waits for the assertion before finishing the test and fails it with a reminder, instead of letting it pass silently.
+
+### Choosing the model
+
+Lithe doesn't depend on any AI provider. Tell it how to call yours with `configure()`, in a setup file:
+
+```ts
+// lithe.setup.ts
+import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
+import { configure } from "@thedejo/lithe";
+
+const anthropic = new Anthropic();
+const openai = new OpenAI();
+
+configure({
+  // Any (prompt) => text function. Used by toMean() and toMeetCriteria().
+  judge: async (prompt) => {
+    const response = await anthropic.beta.messages.create({
+      model: "claude-opus-5-5",
+      max_tokens: 16000,
+      // If this model declines a request, the API retries it on a fallback model.
+      betas: ["server-side-fallback-2026-07-01"],
+      fallbacks: "default",
+      messages: [{ role: "user", content: prompt }],
+    });
+    if (response.stop_reason === "refusal") {
+      throw new Error("The judge model declined to grade this output");
+    }
+    return response.content.flatMap((block) => (block.type === "text" ? [block.text] : [])).join("");
+  },
+
+  // Any (texts) => vectors function. Used by toBeSimilarTo().
+  embed: async (texts) => {
+    const response = await openai.embeddings.create({ model: "text-embedding-3-small", input: texts });
+    return response.data.map((item) => item.embedding);
+  },
+});
+```
+
+Then load it before your tests:
+
+```bash
+npx lithe --setup lithe.setup.ts
+```
+
+You only need to configure what you use: `judge` for `toMean` and `toMeetCriteria`, `embed` for `toBeSimilarTo`. Lithe writes the grading prompt and asks the judge to reply with `{"pass": true|false, "reason": "..."}`.
+
+### Tips
+
+- **Judges cost money and time.** Keep semantic assertions for the checks that really need them, and use [mocks](#mocks) for the rest. Give these tests a longer timeout: `test("…", fn, { timeout: 60_000 })`.
+- **Judges can disagree with themselves.** Write specific criteria ("mentions the refund amount") rather than vague ones ("is helpful"), and use `retries` for tests against live models.
+- **Test your judge.** In tests of Lithe itself, a simple fake judge (a function that returns a JSON verdict) makes semantic assertions deterministic. See [`test/semantic.test.ts`](test/semantic.test.ts).
 
 ---
 
@@ -476,6 +571,7 @@ lithe [test] [patterns...] [options]
 | `--bail` | Stop after the first failure. |
 | `--list` | Print the test files that would run, then exit. |
 | `--report <file>` | Write a JSON run record (results, errors, traces, git commit) to `<file>`. |
+| `--setup <file>` | Load a file before the tests, for example to [`configure()`](#choosing-the-model) a judge. Repeat it for more than one file. |
 | `-V, --version` | Print the version. |
 
 Examples:
@@ -794,7 +890,7 @@ The workflow checks the tag matches `package.json`, runs the tests, publishes to
 - [x] AI-friendly assertions (`toContainAny`, `toBeJSON`, asymmetric matchers, …)
 - [x] CI-friendly exit codes and docs
 - [x] Traces, JSON run records and `lithe compare`
-- [ ] Semantic assertions (embedding / LLM-judged similarity)
+- [x] Semantic assertions (`toMean`, `toMeetCriteria`, `toBeSimilarTo`)
 - [ ] Record & replay of real model responses
 - [ ] Watch mode
 - [ ] JUnit reporter for CI dashboards

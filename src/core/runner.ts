@@ -1,5 +1,6 @@
 import { getRoot, hasOnly, HookFn, resetRegistry, Suite, TestCase } from "./registry";
 import { beginTrace, endTrace, TraceEvent } from "./trace";
+import { takePendingAssertions } from "./semantic";
 
 export type Status = "pass" | "fail" | "skip" | "todo";
 
@@ -160,11 +161,13 @@ async function runTest(test: TestCase, ctx: Ctx): Promise<void> {
       if (errors.length) break;
     }
     if (!errors.length) {
+      takePendingAssertions(); // drop anything left over from hooks or earlier tests
       try {
         await withTimeout(test.fn, timeout, `Test "${test.name}"`);
       } catch (e) {
         errors.push(e);
       }
+      errors.push(...(await settleUnawaited(errors, timeout, test.name)));
     }
     for (const s of [...chain].reverse()) {
       errors.push(...(await runHooks(s.hooks.afterEach, ctx, "afterEach hook")));
@@ -181,6 +184,35 @@ async function runTest(test: TestCase, ctx: Ctx): Promise<void> {
     errors,
     trace: trace.length ? trace : undefined,
   });
+}
+
+const NOT_AWAITED =
+  "\n\nThis assertion was not awaited, so the test finished before it did. Put `await` before `expect(...)`.";
+
+/**
+ * Wait for async assertions the test started but did not await (for example
+ * `expect(x).toMean(...)` without `await`) and return their failures.
+ */
+async function settleUnawaited(errors: unknown[], timeout: number, name: string): Promise<unknown[]> {
+  // Only assertions the test never awaited (or attached a handler to) matter here;
+  // awaited ones have already failed the test or been handled by it.
+  const pending = takePendingAssertions().filter((a) => !a.observed);
+  if (!pending.length) return [];
+  let settled: PromiseSettledResult<unknown>[] = [];
+  try {
+    await withTimeout(async () => {
+      settled = await Promise.allSettled(pending.map((a) => a.promise));
+    }, timeout, `Un-awaited assertions in test "${name}"`);
+  } catch (e) {
+    return [e];
+  }
+  const failures: unknown[] = [];
+  for (const r of settled) {
+    if (r.status !== "rejected" || errors.includes(r.reason) || failures.includes(r.reason)) continue;
+    if (r.reason instanceof Error && !r.reason.message.includes(NOT_AWAITED)) r.reason.message += NOT_AWAITED;
+    failures.push(r.reason);
+  }
+  return failures;
 }
 
 function failAll(suite: Suite, ctx: Ctx, errors: unknown[]) {
