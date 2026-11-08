@@ -1,6 +1,7 @@
 import { getRoot, hasOnly, HookFn, resetRegistry, Suite, TestCase } from "./registry";
 import { beginTrace, endTrace, TraceEvent } from "./trace";
 import { takePendingAssertions } from "./semantic";
+import { beginRecordingTest, endRecordingTest } from "./recordings";
 
 export type Status = "pass" | "fail" | "skip" | "todo";
 
@@ -156,6 +157,7 @@ async function runTest(test: TestCase, ctx: Ctx): Promise<void> {
     attempts++;
     errors = [];
     beginTrace();
+    beginRecordingTest(ctx.file, path);
     for (const s of chain) {
       errors.push(...(await runHooks(s.hooks.beforeEach, ctx, "beforeEach hook")));
       if (errors.length) break;
@@ -173,6 +175,7 @@ async function runTest(test: TestCase, ctx: Ctx): Promise<void> {
       errors.push(...(await runHooks(s.hooks.afterEach, ctx, "afterEach hook")));
     }
     trace = endTrace();
+    endRecordingTest(errors.length === 0);
     if (!errors.length) break;
   }
 

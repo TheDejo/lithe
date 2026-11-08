@@ -142,3 +142,154 @@ test("a broken setup file stops the run", () => {
   assert.equal(code, 1);
   assert.match(out, /Setup file .* failed to load/);
 });
+
+// ---------------------------------------------------------------------------
+// Record & replay, JUnit, watch mode. These run in temp folders so recordings
+// and reports never land in the repo.
+// ---------------------------------------------------------------------------
+import { writeFileSync, existsSync, rmSync } from "node:fs";
+import { pathToFileURL } from "node:url";
+import { spawn } from "node:child_process";
+
+const litheUrl = pathToFileURL(join(root, "dist/index.js")).href;
+
+function tempProject(files) {
+  const dir = mkdtempSync(join(tmpdir(), "lithe-proj-"));
+  for (const [name, content] of Object.entries(files)) writeFileSync(join(dir, name), content);
+  return dir;
+}
+
+function litheIn(dir, ...args) {
+  const r = spawnSync(process.execPath, [cli, ...args], { cwd: dir, encoding: "utf8", env: { ...process.env, NO_COLOR: "1" } });
+  return { code: r.status, out: r.stdout + r.stderr };
+}
+
+test("record once, then replay without calling the real function", () => {
+  const dir = tempProject({});
+  const calls = join(dir, "calls.log");
+  const testFile = (city) => `
+    import { test, expect, recorded } from ${JSON.stringify(litheUrl)};
+    import { appendFileSync } from "node:fs";
+    const weather = recorded("weather", async (city) => {
+      appendFileSync(${JSON.stringify(calls)}, city + "\\n");
+      return { city, forecast: "sunny" };
+    });
+    test("asks for the weather", async () => {
+      expect(await weather(${JSON.stringify(city)})).toEqual({ city: ${JSON.stringify(city)}, forecast: "sunny" });
+    });`;
+  writeFileSync(join(dir, "weather.test.mjs"), testFile("Chicago"));
+  const callCount = () => (existsSync(calls) ? readFileSync(calls, "utf8").trim().split("\n").length : 0);
+
+  let r = litheIn(dir);
+  assert.equal(r.code, 1, r.out);
+  assert.match(r.out, /No recording for weather\("Chicago"\)[\s\S]*Run once with --record/);
+  assert.equal(callCount(), 0);
+
+  r = litheIn(dir, "--record");
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /Saved recordings to __recordings__\/weather\.test\.mjs\.json/);
+  assert.equal(callCount(), 1);
+  const saved = JSON.parse(readFileSync(join(dir, "__recordings__/weather.test.mjs.json"), "utf8"));
+  assert.deepEqual(saved.tests["asks for the weather"][0].result, { city: "Chicago", forecast: "sunny" });
+
+  r = litheIn(dir);
+  assert.equal(r.code, 0, r.out);
+  assert.equal(callCount(), 1, "replay must not call the real function");
+
+  writeFileSync(join(dir, "weather.test.mjs"), testFile("Boston"));
+  r = litheIn(dir);
+  assert.equal(r.code, 1);
+  assert.match(r.out, /No recording for weather\("Boston"\)/);
+
+  r = litheIn(dir, "--rerecord");
+  assert.equal(r.code, 0, r.out);
+  assert.equal(callCount(), 2);
+  const resaved = JSON.parse(readFileSync(join(dir, "__recordings__/weather.test.mjs.json"), "utf8"));
+  assert.equal(resaved.tests["asks for the weather"].length, 1, "rerecord replaces the old entries");
+  assert.equal(resaved.tests["asks for the weather"][0].args[0], "Boston");
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test("--junit writes a JUnit XML report", () => {
+  const out = join(mkdtempSync(join(tmpdir(), "lithe-junit-")), "nested", "junit.xml");
+  const { code } = lithe("test/fixtures/failing.fixture.ts", "test/fixtures/only.fixture.ts", "--junit", out);
+  assert.equal(code, 1);
+  const xml = readFileSync(out, "utf8");
+  assert.match(xml, /^<\?xml version="1.0" encoding="UTF-8"\?>/);
+  assert.match(xml, /<testsuites name="lithe" tests="7" failures="4" errors="0" skipped="1"/);
+  assert.match(xml, /<testsuite name="test\/fixtures\/failing\.fixture\.ts" tests="5" failures="4"/);
+  assert.match(xml, /<testcase classname="test\/fixtures\/failing\.fixture\.ts" name="passes" time="[\d.]+" \/>/);
+  assert.match(xml, /name="broken setup › never runs its body"[\s\S]*?<failure message="db down" type="Error">/);
+  assert.match(xml, /<failure message="expect\(received\)\.toEqual\(expected\)" type="AssertionError">/);
+  assert.match(xml, /name="not this one"[^>]*>\s*<skipped message="skipped" \/>/);
+  assert.doesNotMatch(xml, /\x1b\[/, "no colour codes in XML");
+});
+
+test("--junit includes the trace of a failing test", () => {
+  const out = join(mkdtempSync(join(tmpdir(), "lithe-junit-")), "junit.xml");
+  litheEnv({ AGENT_VARIANT: "v2" }, "test/fixtures/agent-trace.fixture.ts", "--junit", out);
+  const xml = readFileSync(out, "utf8");
+  assert.match(xml, /<system-out>Trace \(2 steps\):\n1\. \+\d+ms note: chose search query \{&quot;query&quot;:&quot;Chicago restaurants&quot;,&quot;variant&quot;:&quot;v2&quot;\}\n2\. \+\d+ms search\(/);
+});
+
+test("--watch re-runs the tests when a file changes", async () => {
+  const dir = tempProject({
+    "math.test.mjs": `import { test, expect } from ${JSON.stringify(litheUrl)};\ntest("adds", () => expect(1 + 1).toBe(2));\n`,
+  });
+  const child = spawn(process.execPath, [cli, "--watch"], { cwd: dir, env: { ...process.env, NO_COLOR: "1" } });
+  let out = "";
+  child.stdout.on("data", (d) => (out += d));
+  child.stderr.on("data", (d) => (out += d));
+  const waitFor = (re, ms = 8000) =>
+    new Promise((ok, fail) => {
+      const start = Date.now();
+      const tick = () => (re.test(out) ? ok() : Date.now() - start > ms ? fail(new Error(`Timed out waiting for ${re}. Output:\n${out}`)) : setTimeout(tick, 50));
+      tick();
+    });
+  try {
+    await waitFor(/Passed\. Watching for changes/);
+    writeFileSync(join(dir, "math.test.mjs"), `import { test, expect } from ${JSON.stringify(litheUrl)};\ntest("adds", () => expect(1 + 1).toBe(3));\n`);
+    await waitFor(/Changed: math\.test\.mjs[\s\S]*✗ adds[\s\S]*Failed\. Watching for changes/);
+  } finally {
+    child.kill("SIGTERM");
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("--record and --rerecord cannot be combined", () => {
+  const { code, out } = lithe("examples/basic.test.ts", "--record", "--rerecord");
+  assert.equal(code, 1);
+  assert.match(out, /either --record or --rerecord/);
+});
+
+test("replay keeps call order, replays errors, and ignores object key order", () => {
+  const dir = tempProject({});
+  const write = (keyOrder) => writeFileSync(join(dir, "edge.test.mjs"), `
+    import { test, expect, recorded } from ${JSON.stringify(litheUrl)};
+    let n = 0;
+    const next = recorded("next", async () => ++n);
+    const lookup = recorded("lookup", async (q) => { if (q.id === "missing") throw new TypeError("not found"); return q.id; });
+    test("same call twice gets each answer in order", async () => {
+      expect(await next()).toBe(1);
+      expect(await next()).toBe(2);
+    });
+    test("errors are replayed as errors", async () => {
+      await expect(lookup({ id: "missing" })).rejects.toThrow("not found");
+    });
+    test("object key order does not matter", async () => {
+      expect(await lookup(${keyOrder})).toBe("a");
+    });
+    const outside = recorded("outside", async () => "called for real");
+    console.log("outside:", await outside());`);
+
+  write(`{ id: "a", kind: "x" }`);
+  assert.equal(litheIn(dir, "--record").code, 0);
+  write(`{ kind: "x", id: "a" }`);
+  const r = litheIn(dir);
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /outside: called for real/);
+  const saved = JSON.parse(readFileSync(join(dir, "__recordings__/edge.test.mjs.json"), "utf8"));
+  assert.deepEqual(saved.tests["errors are replayed as errors"][0].error, { name: "TypeError", message: "not found" });
+  assert.equal(Object.keys(saved.tests).some((t) => saved.tests[t].some((e) => e.call === "outside")), false);
+  rmSync(dir, { recursive: true, force: true });
+});

@@ -52,6 +52,7 @@ Time:       1.02s
 - [Assertions reference](#assertions-reference)
 - [Mocks](#mocks)
 - [Semantic assertions](#semantic-assertions)
+- [Record and replay](#record-and-replay)
 - [Traces and run records](#traces-and-run-records)
 - [CLI reference](#cli-reference)
 - [Running in CI/CD](#running-in-cicd)
@@ -134,6 +135,14 @@ npm test
 ```
 
 Lithe finds every test file under the current directory, skipping `node_modules`, `dist`, `build`, `coverage`, `out` and dot-folders. It prints results and exits with code `1` if anything failed.
+
+While you work, keep it running in watch mode. It re-runs the tests whenever you save a file:
+
+```bash
+npx lithe --watch
+```
+
+Press Enter to run again, or `q` to quit. Each run starts fresh, so edits to your agent and your tests are always picked up.
 
 ---
 
@@ -486,6 +495,61 @@ You only need to configure what you use: `judge` for `toMean` and `toMeetCriteri
 
 ---
 
+## Record and replay
+
+Mocks are fast but invented; real model calls are realistic but slow, costly and different every time. Record and replay gives you both: call the real model once, save what it said, and replay that in every later run.
+
+Wrap the function that calls the model (or any API) with `recorded()`:
+
+```ts
+import Anthropic from "@anthropic-ai/sdk";
+import { test, expect, recorded } from "@thedejo/lithe";
+
+const client = new Anthropic();
+const ask = recorded("claude", (question: string) =>
+  client.messages.create({
+    model: "claude-opus-5-5",
+    max_tokens: 16000,
+    messages: [{ role: "user", content: question }],
+  })
+);
+
+test("answers with a delivery day", async () => {
+  const response = await ask("When will order A-1042 arrive? It shipped Tuesday with 3-day delivery.");
+  const text = response.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("");
+  expect(text).toContainAny(["friday", "fri"]);
+});
+```
+
+Record the real responses once:
+
+```bash
+npx lithe --record
+```
+
+Lithe calls the model, and saves each response to `__recordings__/<test file>.json` next to the test file. Commit that folder. From then on, every run replays the saved responses, with no network, no API key and no cost:
+
+```bash
+npx lithe
+```
+
+| Command | What happens to `recorded()` calls |
+| --- | --- |
+| `npx lithe` | Replay. A call that hasn't been recorded fails the test and tells you to record it. |
+| `npx lithe --record` | Replay what's recorded; call for real and save anything new. |
+| `npx lithe --rerecord` | Call everything for real and replace the saved responses. Use it after changing prompts or models. |
+
+How calls are matched:
+
+- **By test, function name and arguments.** Change the arguments (a new prompt, a different model) and the recording no longer matches, so you know to record again.
+- **In order.** The same call made twice in one test gets each recorded answer in turn.
+- **Errors are recorded too**, and replayed as errors, so you can test how your agent handles a failed call.
+- **Object key order doesn't matter**, so `{ a, b }` and `{ b, a }` match.
+
+Arguments and results must be JSON-serialisable (plain objects, as the Anthropic and OpenAI SDKs return). Outside a running test, `recorded()` just calls through. Recorded calls also appear in each test's [trace](#traces-and-run-records).
+
+---
+
 ## Traces and run records
 
 A pass/fail result tells you *that* an agent's behaviour changed, not *why*. Lithe records what the agent actually did during each test, so that you, a reviewer or another agent can reconstruct the reasoning later:
@@ -571,6 +635,10 @@ lithe [test] [patterns...] [options]
 | `--bail` | Stop after the first failure. |
 | `--list` | Print the test files that would run, then exit. |
 | `--report <file>` | Write a JSON run record (results, errors, traces, git commit) to `<file>`. |
+| `--record` | Call [`recorded()`](#record-and-replay) functions for real when there's no recording yet, and save the responses. |
+| `--rerecord` | Call every `recorded()` function for real and replace its saved responses. |
+| `--junit <file>` | Write a [JUnit XML report](#junit-reports) to `<file>` for CI dashboards. |
+| `-w, --watch` | Re-run the tests whenever a file changes. Press Enter to run again, `q` to quit. |
 | `--setup <file>` | Load a file before the tests, for example to [`configure()`](#choosing-the-model) a judge. Repeat it for more than one file. |
 | `-V, --version` | Print the version. |
 
@@ -804,12 +872,29 @@ Lithe is just a command that exits non-zero on failure, so it works in any CI wi
 npm ci && npx lithe
 ```
 
+### JUnit reports
+
+Most CI systems can show test results in their own UI (per-test pass/fail, history, flaky-test tracking) if you give them a JUnit XML file:
+
+```bash
+npx lithe --junit reports/junit.xml
+```
+
+Each test file becomes a `<testsuite>` and each test a `<testcase>`. Failing tests include the error and stack, and their [trace](#traces-and-run-records) in `<system-out>`.
+
+- **GitLab:** add `artifacts: { when: always, reports: { junit: reports/junit.xml } }` to the job, and results appear in merge requests.
+- **Jenkins:** use the `junit 'reports/junit.xml'` step.
+- **CircleCI:** add a `store_test_results` step pointing at `reports`.
+- **Azure Pipelines:** use the `PublishTestResults@2` task with `testResultsFormat: JUnit`.
+- **GitHub Actions:** upload the file as an artifact, or use a JUnit report action from the Marketplace to show results on the pull request.
+
 ### CI tips
 
 - **Keep API keys in your CI's secret store**, never in test files. Read them with `process.env`.
 - **Mock by default.** Mocked tests are free, fast and deterministic. Save real-model tests for a separate job or schedule.
 - **Use `--retries`** for real-model tests to absorb occasional rate limits and network blips. Retried tests are flagged in the output (`[3 attempts]`), so flakiness stays visible.
 - **Use `--bail`** for faster feedback on long suites.
+- **Record and replay real responses** with [`recorded()`](#record-and-replay) and a committed `__recordings__` folder, so CI tests real model output without an API key.
 - **Keep run records** (`--report`) as artifacts so failures can be explained after the fact, and compare them with `lithe compare`.
 - **Open handles are fine.** Lithe exits when tests finish even if an HTTP client keeps a socket open, so jobs don't hang.
 
@@ -891,9 +976,9 @@ The workflow checks the tag matches `package.json`, runs the tests, publishes to
 - [x] CI-friendly exit codes and docs
 - [x] Traces, JSON run records and `lithe compare`
 - [x] Semantic assertions (`toMean`, `toMeetCriteria`, `toBeSimilarTo`)
-- [ ] Record & replay of real model responses
-- [ ] Watch mode
-- [ ] JUnit reporter for CI dashboards
+- [x] Record and replay of real model responses (`recorded`, `--record`)
+- [x] Watch mode (`--watch`)
+- [x] JUnit reports for CI dashboards (`--junit`)
 - [ ] Parallel file execution
 
 ---

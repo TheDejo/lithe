@@ -1,6 +1,6 @@
 {
   "name": "@thedejo/lithe",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Jest-style test runner for AI agents: test LLM apps, tool calls and multi-step agents, with traces you can diff in CI",
   "keywords": [
     "ai",
