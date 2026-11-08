@@ -40,6 +40,17 @@ export class Reporter {
     this.result(result);
   }
 
+  /** Count a result that was already printed elsewhere (by a parallel worker). */
+  absorb(r: TestResult) {
+    this.counts[r.status]++;
+    if (r.status === "fail") this.failures.push(r);
+  }
+
+  /** Print text produced by a parallel worker, as one block. */
+  write(text: string) {
+    if (text) this.log(text.replace(/\n+$/, ""));
+  }
+
   suiteStart(path: string[]) {
     this.log(`${"  ".repeat(path.length)}${path[path.length - 1]}`);
   }

@@ -293,3 +293,64 @@ test("replay keeps call order, replays errors, and ignores object key order", ()
   assert.equal(Object.keys(saved.tests).some((t) => saved.tests[t].some((e) => e.call === "outside")), false);
   rmSync(dir, { recursive: true, force: true });
 });
+
+// ---------------------------------------------------------------------------
+// Parallel file execution
+// ---------------------------------------------------------------------------
+
+test("--jobs gives the same results as a serial run", () => {
+  const serial = lithe("examples", "test");
+  const parallel = lithe("examples", "test", "--jobs", "4");
+  assert.equal(serial.code, 0, serial.out);
+  assert.equal(parallel.code, 0, parallel.out);
+  const summary = (out) => out.match(/Test files:.*\n.*Tests:.*/)[0];
+  assert.equal(summary(parallel.out), summary(serial.out));
+});
+
+test("--jobs reports failures once, with traces, and combines --report and --junit", () => {
+  const dir = mkdtempSync(join(tmpdir(), "lithe-par-"));
+  const { code, out } = litheEnv(
+    { AGENT_VARIANT: "v2" },
+    "test/fixtures/failing.fixture.ts", "test/fixtures/agent-trace.fixture.ts", "test/fixtures/only.fixture.ts",
+    "--jobs", "3", "--report", join(dir, "run.json"), "--junit", join(dir, "junit.xml")
+  );
+  assert.equal(code, 1);
+  assert.match(out, /Failures \(5\):/);
+  assert.equal(out.match(/db down/g).length >= 1, true);
+  assert.match(out, /plans a trip[\s\S]*Trace \(2 steps\)/);
+  assert.match(out, /Test files: 2 failed, 1 passed \(3\)/);
+  assert.match(out, /Tests: +5 failed, 3 passed, 1 skipped \(9\)/);
+  const report = JSON.parse(readFileSync(join(dir, "run.json"), "utf8"));
+  assert.equal(report.summary.total, 9);
+  assert.deepEqual([...new Set(report.tests.map((t) => t.file))], [
+    "test/fixtures/agent-trace.fixture.ts", "test/fixtures/failing.fixture.ts", "test/fixtures/only.fixture.ts",
+  ], "results are in the same file order as a serial run");
+  assert.match(readFileSync(join(dir, "junit.xml"), "utf8"), /<testsuites name="lithe" tests="9" failures="5"/);
+});
+
+test("--jobs runs files at the same time, and keeps each file's output together", () => {
+  const log = join(mkdtempSync(join(tmpdir(), "lithe-par-")), "times.log");
+  const file = (name) => `
+    import { test } from ${JSON.stringify(litheUrl)};
+    import { appendFileSync } from "node:fs";
+    test("${name} first", async () => {
+      appendFileSync(${JSON.stringify(log)}, "${name} start " + Date.now() + "\\n");
+      await new Promise((r) => setTimeout(r, 700));
+      appendFileSync(${JSON.stringify(log)}, "${name} end " + Date.now() + "\\n");
+    });
+    test("${name} second", () => {});`;
+  const dir = tempProject({ "a.test.mjs": file("a"), "b.test.mjs": file("b") });
+  const { code, out } = litheIn(dir, "--jobs", "2");
+  assert.equal(code, 0, out);
+  const t = Object.fromEntries(readFileSync(log, "utf8").trim().split("\n").map((l) => { const [n, k, v] = l.split(" "); return [`${n}-${k}`, Number(v)]; }));
+  assert.ok(t["a-start"] < t["b-end"] && t["b-start"] < t["a-end"], `files should overlap in time: ${JSON.stringify(t)}`);
+  assert.match(out, /a\.test\.mjs\n  ✓ a first[^\n]*\n  ✓ a second/);
+  assert.match(out, /b\.test\.mjs\n  ✓ b first[^\n]*\n  ✓ b second/);
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test("--jobs rejects invalid values", () => {
+  const { code, out } = lithe("examples", "--jobs", "0");
+  assert.notEqual(code, 0);
+  assert.match(out, /--jobs must be a positive whole number or "auto"/);
+});

@@ -9,12 +9,21 @@ import { Reporter, c } from "./reporter";
 import { buildReport, compareReports, formatStep, readReport, TestChange } from "./report";
 import { buildJUnit } from "./junit";
 import { watch } from "./watch";
+import { parseJobs, runParallel, serializeResults, WORKER_ENV } from "./parallel";
 import { saveRecordings, setRecordingMode } from "../core/recordings";
 import { mkdirSync, writeFileSync } from "fs";
 import { dirname, relative, resolve } from "path";
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { version } = require("../../package.json");
+
+function jobsOption(value: string) {
+  try {
+    return parseJobs(value);
+  } catch (e) {
+    throw new InvalidArgumentError((e as Error).message);
+  }
+}
 
 function collect(value: string, previous: string[]) {
   return [...previous, value];
@@ -49,6 +58,7 @@ interface CliOptions {
   record?: boolean;
   rerecord?: boolean;
   watch?: boolean;
+  jobs?: number;
 }
 
 async function main(patterns: string[], opts: CliOptions): Promise<number> {
@@ -73,6 +83,26 @@ async function main(patterns: string[], opts: CliOptions): Promise<number> {
     console.error(c.yellow("No test files found.") +
       c.gray(` Looked for *.test.* / *.spec.* files${patterns.length ? ` matching: ${patterns.join(" ")}` : ` under ${cwd}`}`));
     return 1;
+  }
+
+  const workerOut = process.env[WORKER_ENV];
+  const jobs = workerOut ? 1 : opts.jobs ?? 1;
+
+  if (jobs > 1 && files.length > 1) {
+    const reporter = new Reporter(cwd);
+    const started = performance.now();
+    const workerArgs = [
+      "--timeout", String(opts.timeout),
+      "--retries", String(opts.retries),
+      ...(opts.testNamePattern ? ["-t", opts.testNamePattern] : []),
+      ...(opts.setup ?? []).flatMap((f) => ["--setup", resolve(cwd, f)]),
+      ...(opts.record ? ["--record"] : []),
+      ...(opts.rerecord ? ["--rerecord"] : []),
+    ];
+    const { results, failed } = await runParallel({ files, jobs, cliPath: __filename, workerArgs, bail: opts.bail, reporter });
+    const ok = reporter.finish();
+    writeOutputs(results, opts, cwd, performance.now() - started);
+    return ok && !failed ? 0 : 1;
   }
 
   await registerTypeScript();
@@ -134,24 +164,31 @@ async function main(patterns: string[], opts: CliOptions): Promise<number> {
     }
   }
 
-  const ok = reporter.finish();
+  if (workerOut) {
+    writeFileSync(workerOut, JSON.stringify(serializeResults(all)));
+    return failed ? 1 : 0;
+  }
 
+  const ok = reporter.finish();
+  writeOutputs(all, opts, cwd, performance.now() - started);
+  return ok && !failed ? 0 : 1;
+}
+
+function writeOutputs(all: TestResult[], opts: CliOptions, cwd: string, durationMs: number) {
   if (opts.junit) {
     const out = resolve(cwd, opts.junit);
     mkdirSync(dirname(out), { recursive: true });
-    writeFileSync(out, buildJUnit(all, { cwd, durationMs: performance.now() - started }));
+    writeFileSync(out, buildJUnit(all, { cwd, durationMs }));
     console.log(c.gray(`JUnit report written to ${opts.junit}`));
   }
 
   if (opts.report) {
     const out = resolve(cwd, opts.report);
-    const report = buildReport(all, { cwd, version, durationMs: performance.now() - started });
+    const report = buildReport(all, { cwd, version, durationMs });
     mkdirSync(dirname(out), { recursive: true });
     writeFileSync(out, JSON.stringify(report, null, 2) + "\n");
     console.log(c.gray(`Report written to ${opts.report}`));
   }
-
-  return ok && !failed ? 0 : 1;
 }
 
 const program = new Command();
@@ -175,6 +212,7 @@ program
   .option("--record", "call recorded() functions for real when no recording exists, and save the responses")
   .option("--rerecord", "call every recorded() function for real and replace its saved responses")
   .option("-w, --watch", "re-run the tests whenever a file changes")
+  .option("-j, --jobs <n>", 'run up to n test files at the same time, each in its own process ("auto" = CPU cores - 1)', jobsOption)
   .option("--report <file>", "write a JSON record of the run (results, errors, traces, git commit) to <file>")
   .action(async (patterns: string[], opts: CliOptions) => {
     const code = await main(patterns, opts);
