@@ -1,6 +1,7 @@
 import { inspect } from "util";
 import { asymmetric, equals } from "./equals";
 import { isMock } from "./mock";
+import { judge, meaningCriterion, similarity, trackAssertion } from "./semantic";
 
 export class AssertionError extends Error {
   constructor(message: string) {
@@ -18,7 +19,7 @@ interface MatcherResult {
   message: (isNot: boolean) => string;
 }
 
-type Matcher = (received: any, ...args: any[]) => MatcherResult;
+type Matcher = (received: any, ...args: any[]) => MatcherResult | Promise<MatcherResult>;
 
 const not = (isNot: boolean) => (isNot ? "not " : "");
 const dotNot = (isNot: boolean) => (isNot ? "not." : "");
@@ -170,6 +171,46 @@ const matchers: Record<string, Matcher> = {
     };
   },
 
+  // --- semantic matchers (async: always await them) ------------------------
+  /** An LLM judge decides whether the value means the same as the reference. */
+  async toMean(r, reference: string) {
+    const v = await judge(r, [meaningCriterion(reference)], "toMean");
+    return {
+      pass: v.pass,
+      message: (isNot) =>
+        `expect(received).${dotNot(isNot)}toMean(reference)\n\n` +
+        `Reference: ${not(isNot)}${fmt(reference)}\n` +
+        `Received:  ${fmt(r)}\n\n` +
+        `Judge: ${v.reason || (v.pass ? "means the same" : "does not mean the same")}`,
+    };
+  },
+  /** An LLM judge checks the value against every criterion. */
+  async toMeetCriteria(r, criteria: string | string[]) {
+    const list = Array.isArray(criteria) ? criteria : [criteria];
+    const v = await judge(r, list, "toMeetCriteria");
+    return {
+      pass: v.pass,
+      message: (isNot) =>
+        `expect(received).${dotNot(isNot)}toMeetCriteria(criteria)\n\n` +
+        `Criteria: ${not(isNot)}${list.map((c) => `\n  - ${c}`).join("")}\n` +
+        `Received: ${fmt(r)}\n\n` +
+        `Judge: ${v.reason || (v.pass ? "meets the criteria" : "does not meet the criteria")}`,
+    };
+  },
+  /** Cosine similarity of embeddings is at least `threshold` (default 0.8). */
+  async toBeSimilarTo(r, expected: string, options: { threshold?: number } = {}) {
+    const threshold = options.threshold ?? 0.8;
+    const score = await similarity(r, expected);
+    return {
+      pass: score >= threshold,
+      message: (isNot) =>
+        `expect(received).${dotNot(isNot)}toBeSimilarTo(expected, { threshold: ${threshold} })\n\n` +
+        `Expected: ${not(isNot)}${fmt(expected)}\n` +
+        `Received: ${fmt(r)}\n\n` +
+        `Similarity: ${score.toFixed(3)} (threshold ${threshold})`,
+    };
+  },
+
   // --- mock matchers -------------------------------------------------------
   toHaveBeenCalled(r) {
     const m = requireMock(r, "toHaveBeenCalled");
@@ -254,6 +295,12 @@ export interface Matchers<R = void> {
   toContainAll(items: unknown[]): R;
   toBeJSON(shape?: unknown): R;
   toSatisfy(predicate: (value: any) => boolean, description?: string): R;
+  /** LLM-judged: means the same as the reference. Returns a promise: always `await` it. */
+  toMean(reference: string): Promise<void>;
+  /** LLM-judged: meets every criterion. Returns a promise: always `await` it. */
+  toMeetCriteria(criteria: string | string[]): Promise<void>;
+  /** Embedding similarity is at least `threshold` (default 0.8). Returns a promise: always `await` it. */
+  toBeSimilarTo(expected: string, options?: { threshold?: number }): Promise<void>;
   toHaveBeenCalled(): R;
   toHaveBeenCalledTimes(n: number): R;
   toHaveBeenCalledWith(...args: unknown[]): R;
@@ -272,12 +319,20 @@ function build(received: unknown, isNot: boolean): Matchers<void> {
   const out: any = {};
   for (const name of Object.keys(matchers) as MatcherName[]) {
     out[name] = (...args: unknown[]) => {
+      // Created now so the stack points at the test, even for async matchers.
+      const err = new AssertionError("");
+      Error.captureStackTrace?.(err, out[name]);
+      const check = (result: MatcherResult) => {
+        if (result.pass === isNot) {
+          err.message = result.message(isNot);
+          throw err;
+        }
+      };
       const result = matchers[name](received, ...args);
-      if (result.pass === isNot) {
-        const err = new AssertionError(result.message(isNot));
-        Error.captureStackTrace?.(err, out[name]);
-        throw err;
+      if (result && typeof (result as Promise<MatcherResult>).then === "function") {
+        return trackAssertion((result as Promise<MatcherResult>).then(check));
       }
+      check(result as MatcherResult);
     };
   }
   return out;
@@ -286,7 +341,10 @@ function build(received: unknown, isNot: boolean): Matchers<void> {
 function buildAsync(promise: unknown, mode: "resolves" | "rejects", isNot: boolean): Matchers<Promise<void>> {
   const out: any = {};
   for (const name of Object.keys(matchers) as MatcherName[]) {
-    out[name] = async (...args: unknown[]) => {
+    out[name] = (...args: unknown[]) => trackAssertion(run(name, args));
+  }
+  async function run(name: MatcherName, args: unknown[]): Promise<void> {
+    {
       if (!promise || typeof (promise as any).then !== "function") {
         throw new AssertionError(`expect(received).${mode}: received value must be a promise`);
       }
@@ -308,13 +366,12 @@ function buildAsync(promise: unknown, mode: "resolves" | "rejects", isNot: boole
             if (r.pass === isNot) throw new AssertionError(r.message(isNot));
             return;
           }
-          (build(value, isNot) as any)[name](...args);
-          return;
+          return await (build(value, isNot) as any)[name](...args);
         }
         throw new AssertionError(`expect(received).rejects.${name}(): promise resolved instead of rejecting`);
       }
-      (build(value, isNot) as any)[name](...args);
-    };
+      return await (build(value, isNot) as any)[name](...args);
+    }
   }
   return out;
 }

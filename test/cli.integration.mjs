@@ -121,3 +121,24 @@ test("compare rejects files that are not reports", () => {
   assert.equal(code, 2);
   assert.match(out, /not a lithe report/);
 });
+
+test("--setup configures a judge for semantic assertions", () => {
+  const { code, out } = lithe("test/fixtures/semantic.fixture.ts", "--setup", "test/fixtures/judge.setup.ts");
+  assert.equal(code, 1, out);
+  assert.match(out, /✓ awaited semantic assertion passes/);
+  assert.match(out, /✗ un-awaited failing assertion still fails the test[\s\S]*Judge: never mentions friday[\s\S]*This assertion was not awaited/);
+  assert.match(out, /✗ judge calls appear in the trace[\s\S]*Trace \(1 step\):[\s\S]*judge\("You are grading/);
+  assert.match(out, /2 failed, 1 passed/);
+});
+
+test("semantic assertions without a judge explain how to configure one", () => {
+  const { code, out } = lithe("test/fixtures/semantic.fixture.ts", "-t", "awaited semantic");
+  assert.equal(code, 1);
+  assert.match(out, /toMean needs a judge\. Call configure\(\{ judge \}\)/);
+});
+
+test("a broken setup file stops the run", () => {
+  const { code, out } = lithe("examples/basic.test.ts", "--setup", "test/fixtures/syntax-error.fixture.ts");
+  assert.equal(code, 1);
+  assert.match(out, /Setup file .* failed to load/);
+});

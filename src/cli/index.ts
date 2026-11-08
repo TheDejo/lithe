@@ -13,6 +13,10 @@ import { dirname, resolve } from "path";
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { version } = require("../../package.json");
 
+function collect(value: string, previous: string[]) {
+  return [...previous, value];
+}
+
 function int(value: string) {
   const n = Number(value);
   if (!Number.isInteger(n) || n < 0) throw new InvalidArgumentError("must be a non-negative integer");
@@ -37,6 +41,7 @@ interface CliOptions {
   bail?: boolean;
   list?: boolean;
   report?: string;
+  setup?: string[];
 }
 
 async function main(patterns: string[], opts: CliOptions): Promise<number> {
@@ -55,6 +60,16 @@ async function main(patterns: string[], opts: CliOptions): Promise<number> {
   }
 
   await registerTypeScript();
+
+  for (const file of opts.setup ?? []) {
+    try {
+      await import(pathToFileURL(resolve(cwd, file)).href);
+    } catch (err) {
+      console.error(c.red(`Setup file ${file} failed to load:`));
+      console.error(err);
+      return 1;
+    }
+  }
 
   let namePattern: RegExp | undefined;
   if (opts.testNamePattern) {
@@ -131,6 +146,7 @@ program
   .option("--retries <n>", "retry failing tests up to n times (useful for flaky LLM calls)", int, 0)
   .option("--bail", "stop after the first failing test")
   .option("--list", "list the test files that would run, then exit")
+  .option("--setup <file>", "load a file before the tests, e.g. to configure({ judge, embed }); repeatable", collect, [])
   .option("--report <file>", "write a JSON record of the run (results, errors, traces, git commit) to <file>")
   .action(async (patterns: string[], opts: CliOptions) => {
     const code = await main(patterns, opts);
