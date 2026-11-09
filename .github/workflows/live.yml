@@ -1,0 +1,22 @@
+name: Live checks
+
+# Runs Lithe's model-facing features against the real Anthropic and OpenAI
+# APIs. Start it by hand from the Actions tab. Needs ANTHROPIC_API_KEY and/or
+# OPENAI_API_KEY as repository secrets; checks without their key are skipped.
+on:
+  workflow_dispatch:
+
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run test:live
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}

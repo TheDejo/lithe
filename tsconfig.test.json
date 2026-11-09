@@ -7,7 +7,8 @@
   "include": [
     "src",
     "examples",
-    "test"
+    "test",
+    "live"
   ],
   "exclude": [
     "test/fixtures/syntax-error.fixture.ts"

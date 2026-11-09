@@ -1,4 +1,5 @@
-import { relative } from "path";
+import { sep } from "path";
+import { displayPath } from "./paths";
 import { inspect } from "util";
 import type { TestResult } from "../core/runner";
 import { formatStep } from "./report";
@@ -27,7 +28,7 @@ export class Reporter {
   constructor(private cwd: string, private log: (s: string) => void = (s) => console.log(s)) {}
 
   fileStart(file: string) {
-    this.log("\n" + c.bold(relative(this.cwd, file)));
+    this.log("\n" + c.bold(displayPath(this.cwd, file)));
   }
 
   fileEnd(results: TestResult[], loadError?: unknown) {
@@ -83,7 +84,7 @@ export class Reporter {
     if (this.failures.length) {
       this.log("\n" + c.red(c.bold(`Failures (${this.failures.length}):`)));
       this.failures.forEach((f, i) => {
-        const where = f.file ? c.gray(`  ${relative(this.cwd, f.file)}`) : "";
+        const where = f.file ? c.gray(`  ${displayPath(this.cwd, f.file)}`) : "";
         this.log(`\n${c.red(`${i + 1}) ${f.path.join(" › ")}`)}${where}`);
         for (const e of f.errors) this.log(indentBlock(formatError(e, this.cwd), "   "));
         if (f.trace?.length) this.log(indentBlock(formatTrace(f.trace), "   "));
@@ -139,6 +140,6 @@ export function formatError(e: unknown, cwd: string): string {
     .filter((l) => /^\s+at /.test(l))
     .filter((l) => !/node:internal|new Promise \(<anonymous>\)|node_modules[\\/](tsx|commander)|[\\/]lithe[\\/](dist|src)[\\/](core|cli)[\\/]/.test(l))
     .slice(0, 4)
-    .map((l) => c.gray(l.trim().replace(cwd + "/", "")));
+    .map((l) => c.gray(l.trim().split(cwd + sep).join("").split(cwd + "/").join("")));
   return [header, ...(frames.length ? ["", ...frames] : [])].join("\n");
 }

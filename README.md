@@ -697,9 +697,9 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -726,8 +726,8 @@ jobs:
   unit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -741,8 +741,8 @@ jobs:
     needs: unit
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -773,8 +773,8 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -785,7 +785,7 @@ jobs:
 
       - name: Save run record
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: lithe-report
           path: lithe-report.json
@@ -921,6 +921,14 @@ npm install
 npm test          # builds, type-checks, runs Lithe on its own tests, then the CLI integration tests
 ```
 
+Check the model-facing features (judges, embeddings, record and replay) against the real APIs. This calls Anthropic and OpenAI and costs a few cents; checks without their key are skipped:
+
+```bash
+ANTHROPIC_API_KEY=... OPENAI_API_KEY=... npm run test:live
+```
+
+Or add the keys as repository secrets and run the **Live checks** workflow from the Actions tab.
+
 Useful commands:
 
 ```bash
@@ -973,6 +981,12 @@ To release:
    ```
 
 The workflow checks the tag matches `package.json`, runs the tests, publishes to npm with provenance, and creates a GitHub Release with generated notes.
+
+---
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for what changed in each version.
 
 ---
 
