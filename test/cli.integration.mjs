@@ -251,8 +251,12 @@ test("--watch re-runs the tests when a file changes", async () => {
     writeFileSync(join(dir, "math.test.mjs"), `import { test, expect } from ${JSON.stringify(litheUrl)};\ntest("adds", () => expect(1 + 1).toBe(3));\n`);
     await waitFor(/Changed: math\.test\.mjs[\s\S]*✗ adds[\s\S]*Failed\. Watching for changes/);
   } finally {
+    // Wait for the watcher to exit before deleting its folder: Windows won't
+    // remove a folder a running process is still using.
+    const exited = child.exitCode !== null ? Promise.resolve() : new Promise((r) => child.once("exit", r));
     child.kill("SIGTERM");
-    rmSync(dir, { recursive: true, force: true });
+    await exited;
+    rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   }
 });
 
