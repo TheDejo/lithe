@@ -14,12 +14,12 @@ jobs:
       contents: write   # create the GitHub Release
       id-token: write   # npm trusted publishing (OIDC) + provenance
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       # No registry-url here on purpose: that makes setup-node write a
       # placeholder auth token, which npm falls back to (and fails with a
       # misleading 404) if trusted publishing can't authenticate.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: 24
           cache: npm

@@ -14,6 +14,9 @@ Lithe follows [semantic versioning](https://semver.org). Until 1.0, a minor vers
 - `npm run test:live` (and a "Live checks" workflow) runs judges, embeddings and record and replay against the real Anthropic and OpenAI APIs.
 - This changelog.
 
+### Changed (docs and CI)
+- GitHub Actions examples and Lithe's own workflows use `actions/checkout@v6`, `actions/setup-node@v6` and `actions/upload-artifact@v6`, which run on Node 24 (the v4 versions trigger a deprecation warning).
+
 ## 0.6.0 (2026-11-08)
 
 ### Added
