@@ -921,6 +921,14 @@ npm install
 npm test          # builds, type-checks, runs Lithe on its own tests, then the CLI integration tests
 ```
 
+Check the model-facing features (judges, embeddings, record and replay) against the real APIs. This calls Anthropic and OpenAI and costs a few cents; checks without their key are skipped:
+
+```bash
+ANTHROPIC_API_KEY=... OPENAI_API_KEY=... npm run test:live
+```
+
+Or add the keys as repository secrets and run the **Live checks** workflow from the Actions tab.
+
 Useful commands:
 
 ```bash
@@ -973,6 +981,12 @@ To release:
    ```
 
 The workflow checks the tag matches `package.json`, runs the tests, publishes to npm with provenance, and creates a GitHub Release with generated notes.
+
+---
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for what changed in each version.
 
 ---
 

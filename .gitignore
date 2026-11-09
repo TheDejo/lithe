@@ -4,3 +4,4 @@ dist/
 *.log
 .npmrc
 *.tgz
+live/.run-*

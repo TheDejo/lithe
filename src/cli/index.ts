@@ -9,6 +9,7 @@ import { Reporter, c } from "./reporter";
 import { buildReport, compareReports, formatStep, readReport, TestChange } from "./report";
 import { buildJUnit } from "./junit";
 import { watch } from "./watch";
+import { displayPath } from "./paths";
 import { parseJobs, runParallel, serializeResults, WORKER_ENV } from "./parallel";
 import { saveRecordings, setRecordingMode } from "../core/recordings";
 import { mkdirSync, writeFileSync } from "fs";
@@ -75,7 +76,7 @@ async function main(patterns: string[], opts: CliOptions): Promise<number> {
   const files = discover(cwd, patterns);
 
   if (opts.list) {
-    files.forEach((f) => console.log(f));
+    files.forEach((f) => console.log(displayPath(cwd, f)));
     return 0;
   }
 
@@ -156,7 +157,7 @@ async function main(patterns: string[], opts: CliOptions): Promise<number> {
       onSuiteStart: (p) => reporter.suiteStart(p),
     });
     reporter.fileEnd(results);
-    for (const path of saveRecordings()) console.log(c.gray(`Saved recordings to ${relative(cwd, path)}`));
+    for (const path of saveRecordings()) console.log(c.gray(`Saved recordings to ${displayPath(cwd, path)}`));
     all.push(...results);
     if (results.some((r) => r.status === "fail")) {
       failed = true;

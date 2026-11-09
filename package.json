@@ -1,6 +1,6 @@
 {
   "name": "@thedejo/lithe",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Jest-style test runner for AI agents: test LLM apps, tool calls and multi-step agents, with traces you can diff in CI",
   "keywords": [
     "ai",
@@ -40,7 +40,8 @@
     "lithe": "dist/cli/index.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "CHANGELOG.md"
   ],
   "engines": {
     "node": ">=20"
@@ -50,7 +51,8 @@
     "prepublishOnly": "npm run build",
     "test": "npm run build && npm run typecheck && node dist/cli/index.js && node --test test/cli.integration.mjs",
     "dev": "tsx src/cli/index.ts",
-    "typecheck": "tsc -p tsconfig.test.json"
+    "typecheck": "tsc -p tsconfig.test.json",
+    "test:live": "npm run build && node dist/cli/index.js live/models.live.ts --setup live/setup.ts --timeout 120000"
   },
   "dependencies": {
     "commander": "^14.0.3",
