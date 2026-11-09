@@ -57,6 +57,7 @@ Time:       1.02s
 - [CLI reference](#cli-reference)
 - [Running in CI/CD](#running-in-cicd)
 - [Developing Lithe](#developing-lithe)
+- [Stability](#stability)
 - [Roadmap](#roadmap)
 - [Contributing](#contributing)
 
@@ -421,6 +422,8 @@ spy.mockRestore();                        // put the original back
 
 ## Semantic assertions
 
+> **Experimental.** This API may still change in a 1.x minor version as people use it with real models. See [Stability](#stability).
+
 Some things can't be checked with string matching: whether an answer *means* the right thing, or whether it's polite, accurate and on topic. Semantic assertions ask a model you choose to decide.
 
 ```ts
@@ -504,6 +507,8 @@ You only need to configure what you use: `judge` for `toMean` and `toMeetCriteri
 ---
 
 ## Record and replay
+
+> **Experimental.** This API, and the format of `__recordings__` files, may still change in a 1.x minor version. See [Stability](#stability).
 
 Mocks are fast but invented; real model calls are realistic but slow, costly and different every time. Record and replay gives you both: call the real model once, save what it said, and replay that in every later run.
 
@@ -983,6 +988,16 @@ To release:
 The workflow checks the tag matches `package.json`, runs the tests, publishes to npm with provenance, and creates a GitHub Release with generated notes.
 
 ---
+
+## Stability
+
+Lithe follows [semantic versioning](https://semver.org):
+
+- Patch versions (1.0.x) only fix bugs.
+- Minor versions (1.x.0) add features without breaking existing tests.
+- Breaking changes only come in a major version (2.0).
+
+Two features are **experimental**: [semantic assertions](#semantic-assertions) and [record and replay](#record-and-replay). They work and are tested, but haven't yet been used widely with real models, so they may still change in a 1.x minor version. Any change is listed in the changelog with what to do.
 
 ## Changelog
 

@@ -2,9 +2,29 @@
 
 All notable changes to Lithe are listed here.
 
-Lithe follows [semantic versioning](https://semver.org). Until 1.0, a minor version (0.x.0) may include breaking changes; they are always listed under **Changed** with what to do. Patch versions (0.x.y) only fix bugs.
+Lithe follows [semantic versioning](https://semver.org). From 1.0:
 
-## 0.6.1 (unreleased)
+- **Patch** versions (1.0.x) only fix bugs.
+- **Minor** versions (1.x.0) add features and never break existing tests.
+- Breaking changes only happen in a **major** version (2.0), and are listed under **Changed** with what to do.
+
+Features marked **experimental** in the README are the exception: they may still change in a minor version, and any change is listed here.
+
+## 1.0.0 (2026-11-09)
+
+The first stable release. Everything in 0.6.1, with a stability promise.
+
+### Stable
+- The test API (`describe`, `test`, `it`, hooks, `.only` / `.skip` / `.todo`, timeouts, retries), `expect` and its matchers (except the semantic ones below), mocks (`fn`, `spyOn`), traces (`traced`, `note`, named mocks), and the CLI with its options, including `--report`, `lithe compare`, `--junit`, `--watch` and `--jobs`.
+- The format of `--report` run records (`schema: 1`) and JUnit output.
+
+### Experimental
+- Semantic assertions (`toMean`, `toMeetCriteria`, `toBeSimilarTo`) and `configure({ judge, embed })`.
+- Record and replay (`recorded`, `--record`, `--rerecord`) and the format of `__recordings__` files.
+
+These have been tested with stand-in models but not yet against real ones at scale. They may change in a 1.x minor version as people use them; any change will be listed here.
+
+## 0.6.1 (2026-11-09)
 
 ### Changed
 - File paths in output always use forward slashes, on every operating system. `--list` now prints paths relative to the current folder instead of absolute paths.
